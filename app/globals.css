@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #ffffff;
+  color: #000;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* ── Fade-in on load ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.fade-in-up-2 { animation-delay: 0.1s; }
+.fade-in-up-3 { animation-delay: 0.2s; }
+
+/* ── Catalog card hover ── */
+.catalog-card {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.22s ease;
+}
+.catalog-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.10);
+}
+
+/* ── Category card hover ── */
+.cat-card {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.28s ease;
+}
+.cat-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 14px 36px rgba(0,0,0,0.14);
+}
+.cat-card img {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cat-card:hover img {
+  transform: scale(1.04);
+}
+
+/* ── Red button ── */
+.btn-red {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #FF1E1E;
+  color: #fff;
+  font-family: var(--font-bebas), sans-serif;
+  letter-spacing: 0.1em;
+  padding: 0.55rem 1.4rem;
+  transition: background 0.18s ease, transform 0.18s ease;
+  white-space: nowrap;
+}
+.btn-red:hover {
+  background: #000;
+  transform: translateY(-1px);
+}
+
+/* ── Nav link hover underline ── */
+.nav-link {
+  position: relative;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #FF1E1E;
+  transition: width 0.2s ease;
+}
+.nav-link:hover::after { width: 100%; }
+
+/* ── Lightbox zoom cursor ── */
+.cursor-zoom-in { cursor: zoom-in; }
