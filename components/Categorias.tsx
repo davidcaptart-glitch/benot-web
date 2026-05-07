@@ -42,16 +42,14 @@ export default function Categorias() {
             <Link
               key={cat.href}
               href={cat.href}
-              className="cat-card group block bg-[#111] overflow-hidden"
+              className="cat-card group block overflow-hidden"
             >
-              <div className="h-[260px] sm:h-[300px] lg:h-[320px] flex items-center justify-center overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={cat.src}
-                  alt={cat.alt}
-                  className="w-full h-full object-contain transition-transform duration-450 group-hover:scale-105"
-                />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={cat.src}
+                alt={cat.alt}
+                className="w-full h-auto block object-cover transition-transform duration-300 group-hover:scale-105"
+              />
             </Link>
           ))}
         </div>
