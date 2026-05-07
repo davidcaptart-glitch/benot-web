@@ -3,7 +3,7 @@ export default function Hero() {
     <section id="inicio" className="pt-[68px] bg-white">
       <div className="max-w-[1200px] mx-auto fade-in-up">
         <a
-          href="https://t.me/BENOTpedidos"
+          href="https://t.me/Benotpedidosbot"
           target="_blank"
           rel="noopener noreferrer"
           className="block transition-opacity duration-300 hover:opacity-95"

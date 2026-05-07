@@ -11,7 +11,7 @@ interface Props {
 }
 
 function telegramUrl(code: string) {
-  return `https://t.me/BENOTpedidos?text=${encodeURIComponent(
+  return `https://t.me/Benotpedidosbot?text=${encodeURIComponent(
     `Hola, quiero hacer un pedido BENOT con el código ${code}`
   )}`;
 }

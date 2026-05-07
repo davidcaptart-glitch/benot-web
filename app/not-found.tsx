@@ -42,7 +42,7 @@ export default function NotFound() {
           VOLVER AL INICIO
         </Link>
         <a
-          href="https://t.me/BENOTpedidos"
+          href="https://t.me/Benotpedidosbot"
           target="_blank"
           rel="noopener noreferrer"
           className="font-bebas tracking-widest text-sm border border-white/30 text-white px-8 py-3 hover:bg-white hover:text-black transition-all duration-200"

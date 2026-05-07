@@ -26,12 +26,12 @@ export default function CatalogPage({ title, subtitle, items }: Props) {
             VOLVER AL INICIO
           </Link>
           <a
-            href="https://t.me/BENOTpedidos"
+            href="https://t.me/Benotpedidosbot"
             target="_blank"
             rel="noopener noreferrer"
             className="font-bebas tracking-widest text-[13px] text-[#FF1E1E] hover:underline"
           >
-            @BENOTpedidos
+            @Benotpedidosbot
           </a>
         </div>
 
@@ -53,7 +53,7 @@ export default function CatalogPage({ title, subtitle, items }: Props) {
             ¿No encuentras lo que buscas? Diseño personalizado
           </p>
           <a
-            href="https://t.me/BENOTpedidos"
+            href="https://t.me/Benotpedidosbot"
             target="_blank"
             rel="noopener noreferrer"
             className="btn-red font-bebas tracking-widest text-sm inline-flex"

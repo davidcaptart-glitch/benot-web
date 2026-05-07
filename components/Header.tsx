@@ -63,7 +63,7 @@ export default function Header() {
 
         {/* Telegram CTA */}
         <a
-          href="https://t.me/BENOTpedidos"
+          href="https://t.me/Benotpedidosbot"
           target="_blank"
           rel="noopener noreferrer"
           className="hidden lg:flex items-center gap-2 bg-black text-white font-bebas tracking-widest text-[13.5px] px-5 py-2.5 transition-all duration-200 hover:bg-[#FF1E1E]"
@@ -75,7 +75,7 @@ export default function Header() {
             height={16}
             className="w-4 h-4 object-contain"
           />
-          @BENOTpedidos
+          @Benotpedidosbot
         </a>
 
         {/* Mobile burger */}
@@ -112,12 +112,12 @@ export default function Header() {
             </Link>
           ))}
           <a
-            href="https://t.me/BENOTpedidos"
+            href="https://t.me/Benotpedidosbot"
             target="_blank"
             rel="noopener noreferrer"
             className="mt-1 bg-black text-white font-bebas tracking-widest text-base px-4 py-2.5 text-center hover:bg-[#FF1E1E] transition-colors"
           >
-            @BENOTpedidos
+            @Benotpedidosbot
           </a>
         </nav>
       </div>

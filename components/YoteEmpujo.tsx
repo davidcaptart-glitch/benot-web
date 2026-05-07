@@ -5,7 +5,7 @@ export default function YoteEmpujo() {
 
         {/* Main banner image — clickable to Telegram */}
         <a
-          href="https://t.me/BENOTpedidos"
+          href="https://t.me/Benotpedidosbot"
           target="_blank"
           rel="noopener noreferrer"
           className="block transition-opacity duration-300 hover:opacity-95"

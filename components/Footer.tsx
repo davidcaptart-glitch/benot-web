@@ -26,7 +26,7 @@ export default function Footer() {
           {/* Center nav */}
           <nav className="flex flex-col items-center gap-3">
             <a
-              href="https://t.me/BENOTpedidos"
+              href="https://t.me/Benotpedidosbot"
               target="_blank"
               rel="noopener noreferrer"
               className="font-bebas tracking-widest text-sm text-gray-400 hover:text-[#FF1E1E] transition-colors duration-200"
@@ -52,7 +52,7 @@ export default function Footer() {
           {/* Right: CTA */}
           <div className="flex flex-col items-center md:items-end gap-4">
             <a
-              href="https://t.me/BENOTpedidos"
+              href="https://t.me/Benotpedidosbot"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-red font-bebas tracking-widest text-sm"
@@ -63,7 +63,7 @@ export default function Footer() {
               HACER MI PEDIDO
             </a>
             <span className="font-bebas tracking-widest text-gray-600 text-xs">
-              @BENOTpedidos
+              @Benotpedidosbot
             </span>
           </div>
 
