@@ -72,7 +72,7 @@ export default function Footer() {
           <p className="font-bebas tracking-widest text-gray-700 text-xs text-center">
             © 2026 BENOT. TODOS LOS DERECHOS RESERVADOS.
           </p>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
             {["FRASES", "ANIME", "GUERREROS", "RUNNING"].map((cat) => (
               <a
                 key={cat}
@@ -83,6 +83,23 @@ export default function Footer() {
               </a>
             ))}
           </div>
+        </div>
+
+        {/* Legal links */}
+        <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1">
+          {[
+            { label: "AVISO LEGAL",            href: "/aviso-legal" },
+            { label: "POLÍTICA DE PRIVACIDAD", href: "/politica-privacidad" },
+            { label: "POLÍTICA DE COOKIES",    href: "/politica-cookies" },
+          ].map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              className="font-bebas tracking-widest text-[10px] text-gray-600 hover:text-[#FF1E1E] transition-colors duration-200"
+            >
+              {l.label}
+            </a>
+          ))}
         </div>
       </div>
     </footer>

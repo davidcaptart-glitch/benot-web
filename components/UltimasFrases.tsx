@@ -4,7 +4,7 @@ import CatalogGrid from "@/components/CatalogGrid";
 
 export default function UltimasFrases() {
   const all = getAssetFiles("Frases");
-  const preview = all.slice(0, 5);
+  const preview = all.slice(0, 6);
 
   return (
     <section id="frases" className="bg-white py-10">
@@ -27,7 +27,7 @@ export default function UltimasFrases() {
           </Link>
         </div>
 
-        {/* 5-card row with lightbox */}
+        {/* 6-card grid with lightbox */}
         <CatalogGrid items={preview} cols="3" />
 
       </div>

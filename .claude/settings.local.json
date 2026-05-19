@@ -6,7 +6,24 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(git pull *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(puttygen \"D:/DF/EMPRESAS/BENOT/Gestión/hetzner ssh private key.ppk\" -O private-openssh -o /tmp/hetzner_openssh)",
+      "Bash(chmod 600 /tmp/hetzner_openssh)",
+      "Read(//tmp/**)",
+      "Bash(\"/c/Program Files/PuTTY/puttygen.exe\" \"D:/DF/EMPRESAS/BENOT/Gestión/hetzner ssh private key.ppk\" -O private-openssh -o /tmp/hetzner_openssh)",
+      "Bash(python3 -)",
+      "Bash(cat \"C:/Users/dfran/AppData/Local/Temp/hk.pem\" | head -5 && echo \"---\" && cat \"C:/Users/dfran/AppData/Local/Temp/hk.pem\" | wc -c)",
+      "Bash(ssh-keygen -l -f \"C:/Users/dfran/AppData/Local/Temp/hk.pem\")",
+      "Bash(gh auth *)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "PowerShell(gh --version 2>$null)",
+      "PowerShell(if \\($?\\) { \"gh available\" } else { \"gh not found\" })",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__form_input"
     ]
   }
 }
