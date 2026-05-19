@@ -14,7 +14,7 @@ export interface AssetItem {
 }
 
 interface Props {
-  frases: AssetItem[];
+  frasesByColor: Record<Color, AssetItem[]>;
   disenos: AssetItem[];
 }
 
@@ -227,19 +227,24 @@ function SelectCard({
 
 /* ──────────────────────────────────────────────
    Step 2 — Frase picker
+   Los thumbnails se muestran ya en el color elegido:
+   assets/Configurador/frases/{color}/{code}.png
+   Al añadir un .png en las 3 carpetas y hacer push → aparece solo.
 ────────────────────────────────────────────── */
 function Step2Frase({
-  frases,
+  frasesByColor,
   selected,
   onSelect,
   color,
 }: {
-  frases: AssetItem[];
+  frasesByColor: Record<Color, AssetItem[]>;
   selected: string | null;
   onSelect: (code: string) => void;
   color: Color;
 }) {
   const colorCfg = COLORS.find((c) => c.id === color)!;
+  const frases = frasesByColor[color];
+
   return (
     <div className="fade-in-up">
       <p className="font-bebas tracking-widest text-[#FF1E1E] text-sm mb-1">02 / 04</p>
@@ -251,7 +256,7 @@ function Step2Frase({
       </div>
       {frases.length === 0 ? (
         <p className="font-bebas tracking-widest text-gray-400 text-lg">
-          No hay frases disponibles todavía.
+          Próximamente — estamos preparando las frases.
         </p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -308,18 +313,11 @@ function Step3Diseno({
 }
 
 /* ──────────────────────────────────────────────
-   Color suffix map
-   negra → B (Black) · blanca → W (White) · roja → R (Red)
-   Naming convention: BNTFR001B.png / BNTFR001W.png / BNTFR001R.png
-────────────────────────────────────────────── */
-const COLOR_SUFFIX: Record<Color, string> = {
-  negra: "B",
-  blanca: "W",
-  roja: "R",
-};
-
-/* ──────────────────────────────────────────────
    Shirt mockup (3-layer compositing)
+   Rutas:
+     base   → assets/Configurador/base/{color}-{frente|detras}.png
+     frase  → assets/Configurador/frases/{color}/{code}.png
+     diseño → assets/Configurador/disenos/{code}.png
 ────────────────────────────────────────────── */
 function ShirtMockup({
   color,
@@ -332,8 +330,8 @@ function ShirtMockup({
   disenoCode: string;
   view: "frente" | "detras";
 }) {
-  const base = `/assets/Configurador/base/${color}-${view}.png`;
-  const frase = `/assets/Configurador/frases/${fraseCode}${COLOR_SUFFIX[color]}.png`;
+  const base   = `/assets/Configurador/base/${color}-${view}.png`;
+  const frase  = `/assets/Configurador/frases/${color}/${fraseCode}.png`;
   const diseno = `/assets/Configurador/disenos/${disenoCode}.png`;
 
   const shirtBg =
@@ -469,7 +467,7 @@ function Step4Preview({
 /* ──────────────────────────────────────────────
    Main wizard
 ────────────────────────────────────────────── */
-export default function Configurador({ frases, disenos }: Props) {
+export default function Configurador({ frasesByColor, disenos }: Props) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [color, setColor] = useState<Color | null>(null);
   const [fraseCode, setFraseCode] = useState<string | null>(null);
@@ -483,17 +481,24 @@ export default function Configurador({ frases, disenos }: Props) {
   const next = () => setStep((s) => (Math.min(s + 1, 4) as 1 | 2 | 3 | 4));
   const prev = () => setStep((s) => (Math.max(s - 1, 1) as 1 | 2 | 3 | 4));
 
+  // Si el usuario cambia de color, limpia la frase seleccionada
+  // (puede que no exista esa frase en el nuevo color)
+  const handleColorSelect = (c: Color) => {
+    setColor(c);
+    setFraseCode(null);
+  };
+
   return (
     <section className="min-h-[calc(100vh-68px)] bg-white">
       <div className="max-w-[1200px] mx-auto px-6 py-12">
         <StepBar current={step} />
 
         {step === 1 && (
-          <Step1Color selected={color} onSelect={(c) => { setColor(c); }} />
+          <Step1Color selected={color} onSelect={handleColorSelect} />
         )}
         {step === 2 && (
           <Step2Frase
-            frases={frases}
+            frasesByColor={frasesByColor}
             selected={fraseCode}
             onSelect={setFraseCode}
             color={color!}

@@ -11,20 +11,25 @@ export const metadata: Metadata = {
 };
 
 export default function ConfiguradorPage() {
-  const frases = getAssetFiles("Frases");
+  // Frases detectadas por carpeta de color — al añadir BNTFR0XX.png
+  // en las tres carpetas y hacer push, aparece automáticamente.
+  const frasesByColor = {
+    negra:  getAssetFiles("Configurador/frases/negra"),
+    blanca: getAssetFiles("Configurador/frases/blanca"),
+    roja:   getAssetFiles("Configurador/frases/roja"),
+  };
 
   // Solo Anime y Guerreros son configurables.
   // Running y YoTeEmpujo son colecciones con diseño fijo — no aplican.
   const disenos = [
-    ...getAssetFiles("Anime"),
-    ...getAssetFiles("Guerreros"),
+    ...getAssetFiles("Configurador/disenos"),
   ];
 
   return (
     <>
       <Header />
       <main className="pt-[68px]">
-        <Configurador frases={frases} disenos={disenos} />
+        <Configurador frasesByColor={frasesByColor} disenos={disenos} />
       </main>
       <Footer />
     </>
