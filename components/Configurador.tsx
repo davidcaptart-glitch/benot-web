@@ -45,7 +45,9 @@ type CartItem = CartPersonalizada | CartFixed;
 
 interface Props {
   frasesByColor: Record<Color, AssetItem[]>;
-  disenosByCategory: Record<string, AssetItem[]>;
+  /** Diseños organizados por categoría y luego por color.
+   *  Los thumbnails ya muestran el diseño sobre la camiseta del color elegido. */
+  disenosByCategory: Record<string, Record<Color, AssetItem[]>>;
   runningItems: AssetItem[];
   yoteempujoItems: AssetItem[];
 }
@@ -359,11 +361,13 @@ function Step2Frase({ frasesByColor, selected, onSelect, color }: { frasesByColo
 
 /* ──────────────────────────────────────────────
    Step 3 — Diseño con categorías
+   Los thumbnails ya muestran el diseño sobre el color de camiseta elegido.
 ────────────────────────────────────────────── */
-function Step3Diseno({ disenosByCategory, selected, selectedCategoria, onSelect }: { disenosByCategory: Record<string, AssetItem[]>; selected: string | null; selectedCategoria: string | null; onSelect: (code: string, categoria: string) => void }) {
+function Step3Diseno({ disenosByCategory, selected, selectedCategoria, onSelect, color }: { disenosByCategory: Record<string, Record<Color, AssetItem[]>>; selected: string | null; selectedCategoria: string | null; onSelect: (code: string, categoria: string) => void; color: Color }) {
   const categories = Object.keys(disenosByCategory);
   const [activeCategory, setActiveCategory] = useState<string>(selectedCategoria ?? categories[0] ?? "anime");
-  const items = disenosByCategory[activeCategory] ?? [];
+  // Mostrar thumbnails ya en el color elegido
+  const items = (disenosByCategory[activeCategory] ?? {})[color] ?? [];
 
   return (
     <div className="fade-in-up">
@@ -389,12 +393,24 @@ function Step3Diseno({ disenosByCategory, selected, selectedCategoria, onSelect 
 
 /* ──────────────────────────────────────────────
    Step 4 — Resultado (imágenes pre-compuestas)
+   Rutas:
+     frase  → 03 - Resultado/{fraseCode}R.png   (fraseCode ya lleva sufijo de color)
+     diseño → 03 - Resultado/{disenoCode}R.png  (idem)
 ────────────────────────────────────────────── */
+const RESULTADO_BASE = encodeURI(
+  "/assets/Configurador/Camiseta personalizada/03 - Resultado"
+);
+const BASE_SHIRT_PATH = encodeURI(
+  "/assets/Configurador/Camiseta personalizada/00 - base"
+);
+
 function Step4Resultado({ color, fraseCode, disenoCode, disenoCategoria }: { color: Color; fraseCode: string; disenoCode: string; disenoCategoria: string }) {
-  const colorCfg  = COLORS.find((c) => c.id === color)!;
-  const suffix    = getColorSuffix(color);
-  const fraseResultSrc  = `/assets/Configurador/Resultado/${fraseCode}.png`;
-  const disenoResultSrc = `/assets/Configurador/Resultado/${disenoCode}${suffix}.png`;
+  const colorCfg        = COLORS.find((c) => c.id === color)!;
+  // El código ya lleva el sufijo de color; añadimos "R" de resultado
+  const fraseResultSrc  = `${RESULTADO_BASE}/${fraseCode}R.png`;
+  const disenoResultSrc = `${RESULTADO_BASE}/${disenoCode}R.png`;
+  const baseFrente      = `${BASE_SHIRT_PATH}/${color}-frente.png`;
+  const baseDetras      = `${BASE_SHIRT_PATH}/${color}-detras.png`;
 
   return (
     <div className="fade-in-up">
@@ -405,14 +421,14 @@ function Step4Resultado({ color, fraseCode, disenoCode, disenoCategoria }: { col
           <p className="font-bebas tracking-widest text-xs text-gray-400 tracking-[0.2em] text-center mb-3">DELANTERA</p>
           <div className="relative aspect-[3/4] w-full overflow-hidden bg-gray-50 border border-gray-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={fraseResultSrc} alt="Vista delantera" className="absolute inset-0 w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).src = `/assets/Configurador/base/${color}-frente.png`; }} />
+            <img src={fraseResultSrc} alt="Vista delantera" className="absolute inset-0 w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).src = baseFrente; }} />
           </div>
         </div>
         <div>
           <p className="font-bebas tracking-widest text-xs text-gray-400 tracking-[0.2em] text-center mb-3">TRASERA</p>
           <div className="relative aspect-[3/4] w-full overflow-hidden bg-gray-50 border border-gray-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={disenoResultSrc} alt="Vista trasera" className="absolute inset-0 w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).src = `/assets/Configurador/base/${color}-detras.png`; }} />
+            <img src={disenoResultSrc} alt="Vista trasera" className="absolute inset-0 w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).src = baseDetras; }} />
           </div>
         </div>
       </div>
@@ -810,7 +826,7 @@ export default function Configurador({ frasesByColor, disenosByCategory, running
 
             {step === 1 && <Step1Color selected={color} onSelect={handleColorSelect} />}
             {step === 2 && <Step2Frase frasesByColor={frasesByColor} selected={fraseCode} onSelect={setFraseCode} color={color!} />}
-            {step === 3 && <Step3Diseno disenosByCategory={disenosByCategory} selected={disenoCode} selectedCategoria={disenoCategoria} onSelect={handleDisenoSelect} />}
+            {step === 3 && <Step3Diseno disenosByCategory={disenosByCategory} selected={disenoCode} selectedCategoria={disenoCategoria} onSelect={handleDisenoSelect} color={color!} />}
             {step === 4 && <Step4Resultado color={color!} fraseCode={fraseCode!} disenoCode={disenoCode!} disenoCategoria={disenoCategoria!} />}
             {step === 5 && <Step5Talla sizes={personSizes} onChange={setPersonSizes} />}
 

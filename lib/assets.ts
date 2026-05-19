@@ -23,7 +23,8 @@ export function getAssetFiles(folder: string): AssetItem[] {
       .map((filename) => ({
         code: path.parse(filename).name,
         filename,
-        src: `/assets/${folder}/${encodeURIComponent(filename)}`,
+        // encodeURI handles spaces/accents in folder segments while keeping / intact
+        src: encodeURI(`/assets/${folder}/${filename}`),
       }));
   } catch {
     return [];
