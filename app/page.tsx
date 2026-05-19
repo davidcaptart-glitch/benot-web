@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import UltimasFrases from "@/components/UltimasFrases";
+import Slogan from "@/components/Slogan";
 import Categorias from "@/components/Categorias";
 import YoteEmpujo from "@/components/YoteEmpujo";
 import ComoFunciona from "@/components/ComoFunciona";
@@ -13,6 +14,7 @@ export default function Home() {
       <Header />
       <Hero />
       <UltimasFrases />
+      <Slogan />
       <Categorias />
       <YoteEmpujo />
       <ComoFunciona />

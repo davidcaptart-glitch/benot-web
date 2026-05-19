@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import Slogan from "@/components/Slogan";
 import Configurador from "@/components/Configurador";
 import { getAssetFiles } from "@/lib/assets";
 
@@ -52,6 +53,7 @@ export default function ConfiguradorPage() {
     <>
       <Header />
       <main className="pt-[68px]">
+        <Slogan />
         <Configurador
           frasesByColor={frasesByColor}
           disenosByCategory={disenosByCategory}
