@@ -725,6 +725,24 @@ function CartView({
             </div>
           )}
 
+          {/* Pedir por Telegram */}
+          <div className="border-t-2 border-gray-100 pt-8 mb-4">
+            <p className="font-bebas tracking-widest text-xs text-gray-400 mb-3 leading-relaxed">
+              ¿PREFIERES PEDIR CON AYUDA PERSONALIZADA? NUESTRO BOT DE TELEGRAM TE GUÍA PASO A PASO.
+            </p>
+            <a
+              href={buildTelegramUrl(cart)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-3 font-bebas tracking-widest text-sm px-10 py-4 w-full sm:w-auto justify-center bg-[#2AABEE] text-white hover:bg-[#1a8bc7] transition-all duration-200 mb-6"
+            >
+              <svg className="w-5 h-5 fill-white flex-shrink-0" viewBox="0 0 24 24">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-2.01 9.474c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.873.747z" />
+              </svg>
+              PEDIR POR TELEGRAM
+            </a>
+          </div>
+
           {/* Checkout button */}
           <div className="border-t-2 border-gray-100 pt-8">
             <p className="font-bebas tracking-widest text-xs text-gray-400 mb-4 leading-relaxed">
