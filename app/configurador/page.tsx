@@ -11,25 +11,37 @@ export const metadata: Metadata = {
 };
 
 export default function ConfiguradorPage() {
-  // Frases detectadas por carpeta de color — al añadir BNTFR0XX.png
-  // en las tres carpetas y hacer push, aparece automáticamente.
+  // Frases por color — carpeta: assets/Configurador/Frases/{color}/
+  // Añadir BNTFRXXX.png en la carpeta correspondiente y hacer push → aparece automáticamente.
   const frasesByColor = {
-    negra:  getAssetFiles("Configurador/frases/negra"),
-    blanca: getAssetFiles("Configurador/frases/blanca"),
-    roja:   getAssetFiles("Configurador/frases/roja"),
+    negra:  getAssetFiles("Configurador/Frases/negra"),
+    blanca: getAssetFiles("Configurador/Frases/blanca"),
+    roja:   getAssetFiles("Configurador/Frases/roja"),
   };
 
-  // Solo Anime y Guerreros son configurables.
-  // Running y YoTeEmpujo son colecciones con diseño fijo — no aplican.
-  const disenos = [
-    ...getAssetFiles("Configurador/disenos"),
-  ];
+  // Diseños por categoría — carpeta: assets/Configurador/Diseños/{categoria}/
+  // Añadir nueva categoría = crear carpeta + añadir imágenes + push.
+  const disenosByCategory = {
+    anime:     getAssetFiles("Configurador/Diseños/Anime"),
+    guerreros: getAssetFiles("Configurador/Diseños/Guerreros"),
+  };
+
+  // Running — catálogo fijo: assets/Configurador/Running/
+  const runningItems = getAssetFiles("Configurador/Running");
+
+  // #YoTeEmpujo — camiseta solidaria: assets/Configurador/yoteempujo/
+  const yoteempujoItems = getAssetFiles("Configurador/yoteempujo");
 
   return (
     <>
       <Header />
       <main className="pt-[68px]">
-        <Configurador frasesByColor={frasesByColor} disenos={disenos} />
+        <Configurador
+          frasesByColor={frasesByColor}
+          disenosByCategory={disenosByCategory}
+          runningItems={runningItems}
+          yoteempujoItems={yoteempujoItems}
+        />
       </main>
       <Footer />
     </>
