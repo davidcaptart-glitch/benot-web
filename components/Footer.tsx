@@ -34,7 +34,7 @@ export default function Footer() {
               TELEGRAM
             </a>
             <a
-              href="https://instagram.com"
+              href="https://instagram.com/benotstore"
               target="_blank"
               rel="noopener noreferrer"
               className="font-bebas tracking-widest text-sm text-gray-400 hover:text-[#FF1E1E] transition-colors duration-200"
@@ -42,29 +42,27 @@ export default function Footer() {
               INSTAGRAM
             </a>
             <a
-              href="/#contacto"
+              href="mailto:benotstore@gmail.com"
               className="font-bebas tracking-widest text-sm text-gray-400 hover:text-[#FF1E1E] transition-colors duration-200"
             >
-              CONTACTO
+              benotstore@gmail.com
             </a>
           </nav>
 
           {/* Right: CTA */}
           <div className="flex flex-col items-center md:items-end gap-4">
             <a
-              href="https://t.me/Benotpedidosbot"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/configurador"
               className="btn-red font-bebas tracking-widest text-sm"
             >
-              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
-                <path d="M22.265 2.428a1.99 1.99 0 0 0-2.021-.338L2.38 9.005C1.17 9.478.363 10.62.363 11.913c0 1.293.808 2.435 2.017 2.908l4.102 1.573 1.56 5.023c.166.534.647.903 1.205.903.33 0 .648-.12.898-.337l2.515-2.24 4.48 3.494c.282.22.624.34.97.34.847 0 1.567-.598 1.717-1.428l3.04-16.77a1.99 1.99 0 0 0-.602-1.951z"/>
-              </svg>
-              HACER MI PEDIDO
+              ✦ CONFIGURA LA TUYA
             </a>
-            <span className="font-bebas tracking-widest text-gray-600 text-xs">
-              @Benotpedidosbot
-            </span>
+            <a
+              href="mailto:benotstore@gmail.com"
+              className="font-bebas tracking-widest text-gray-600 text-xs hover:text-[#FF1E1E] transition-colors"
+            >
+              benotstore@gmail.com
+            </a>
           </div>
 
         </div>

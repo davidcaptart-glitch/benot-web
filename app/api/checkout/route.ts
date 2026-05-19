@@ -98,11 +98,71 @@ export async function POST(req: NextRequest) {
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL ?? "https://benot.store";
 
+    // Calcular el total del carrito para decidir si aplica envío gratuito
+    const cartTotal = cart.reduce((sum, item) => {
+      const tipo  = item.tipo as string;
+      const sizes = (item.sizes ?? {}) as Record<string, number>;
+      const qty   = Object.values(sizes).reduce((a, b) => a + b, 0) || 1;
+      return sum + (PRICES[tipo] ?? 2990) * qty;
+    }, 0);
+
+    const freeShipping = cartTotal >= 8000; // gratis desde 80 €
+
+    const shippingOptions: Stripe.Checkout.SessionCreateParams["shipping_options"] = freeShipping
+      ? [
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              fixed_amount: { amount: 0, currency: "eur" },
+              display_name: "Envío estándar (gratis desde 80 €)",
+              delivery_estimate: {
+                minimum: { unit: "business_day", value: 3 },
+                maximum: { unit: "business_day", value: 7 },
+              },
+            },
+          },
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              fixed_amount: { amount: 999, currency: "eur" },
+              display_name: "Envío urgente",
+              delivery_estimate: {
+                minimum: { unit: "business_day", value: 1 },
+                maximum: { unit: "business_day", value: 3 },
+              },
+            },
+          },
+        ]
+      : [
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              fixed_amount: { amount: 499, currency: "eur" },
+              display_name: "Envío estándar",
+              delivery_estimate: {
+                minimum: { unit: "business_day", value: 3 },
+                maximum: { unit: "business_day", value: 7 },
+              },
+            },
+          },
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              fixed_amount: { amount: 999, currency: "eur" },
+              display_name: "Envío urgente",
+              delivery_estimate: {
+                minimum: { unit: "business_day", value: 1 },
+                maximum: { unit: "business_day", value: 3 },
+              },
+            },
+          },
+        ];
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      // Tarjeta + métodos locales disponibles en la cuenta Stripe
       payment_method_types: ["card"],
       line_items,
+      shipping_options: shippingOptions,
       // Recopilar dirección de envío
       shipping_address_collection: {
         allowed_countries: ["ES", "PT", "FR", "IT", "DE", "BE", "NL", "AT", "CH"],
