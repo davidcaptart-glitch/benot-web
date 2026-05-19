@@ -13,6 +13,10 @@ services:
     # Carga el fichero .env del servidor (NO lo subas al repo)
     env_file:
       - .env
+    # Volumen de assets: permite añadir/cambiar imágenes sin reconstruir la imagen Docker.
+    # Simplemente sube los archivos a /opt/benot-web/assets/ y reinicia el contenedor.
+    volumes:
+      - ./assets:/app/assets:ro
     # Healthcheck para que el proxy sepa cuándo está listo
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
