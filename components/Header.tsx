@@ -7,7 +7,6 @@ import Link from "next/link";
 const navLinks = [
   { label: "INICIO", href: "/#inicio" },
   { label: "FRASES", href: "/frases" },
-  { label: "DISEÑOS", href: "/#disenos" },
   { label: "CATEGORÍAS", href: "/#categorias" },
   { label: "#YOTEEMPUJO", href: "/#yoteempujo", red: true },
   { label: "CÓMO FUNCIONA", href: "/#como-funciona" },
@@ -34,7 +33,7 @@ export default function Header() {
     >
       <div className="max-w-[1200px] mx-auto px-6 flex items-center justify-between h-[68px]">
 
-        {/* Logo — slightly bigger */}
+        {/* Logo */}
         <Link href="/" className="flex-shrink-0">
           <Image
             src="/assets/logo/logo.png"
@@ -47,18 +46,26 @@ export default function Header() {
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden lg:flex items-center gap-7 xl:gap-9">
+        <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
           {navLinks.map((l) => (
             <Link
               key={l.label}
               href={l.href}
-              className={`nav-link font-bebas tracking-widest text-[14.5px] transition-colors hover:text-[#FF1E1E] ${
+              className={`nav-link font-bebas tracking-widest text-[14px] transition-colors hover:text-[#FF1E1E] ${
                 l.red ? "text-[#FF1E1E]" : "text-black"
               }`}
             >
               {l.label}
             </Link>
           ))}
+
+          {/* CONFIGURA TU CAMISETA — highlighted link */}
+          <Link
+            href="/configurador"
+            className="font-bebas tracking-widest text-[14px] bg-[#FF1E1E] text-white px-4 py-1.5 hover:bg-black transition-all duration-200"
+          >
+            ✦ CONFIGURA LA TUYA
+          </Link>
         </nav>
 
         {/* Telegram CTA */}
@@ -95,7 +102,7 @@ export default function Header() {
       {/* Mobile menu */}
       <div
         className={`lg:hidden bg-white border-t border-gray-100 transition-all duration-300 overflow-hidden ${
-          menuOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
+          menuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <nav className="px-6 py-5 flex flex-col gap-4">
@@ -111,6 +118,13 @@ export default function Header() {
               {l.label}
             </Link>
           ))}
+          <Link
+            href="/configurador"
+            onClick={() => setMenuOpen(false)}
+            className="font-bebas tracking-widest text-xl bg-[#FF1E1E] text-white px-4 py-2.5 text-center hover:bg-black transition-colors"
+          >
+            ✦ CONFIGURA LA TUYA
+          </Link>
           <a
             href="https://t.me/Benotpedidosbot"
             target="_blank"
