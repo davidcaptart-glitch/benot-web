@@ -308,6 +308,17 @@ function Step3Diseno({
 }
 
 /* ──────────────────────────────────────────────
+   Color suffix map
+   negra → B (Black) · blanca → W (White) · roja → R (Red)
+   Naming convention: BNTFR001B.png / BNTFR001W.png / BNTFR001R.png
+────────────────────────────────────────────── */
+const COLOR_SUFFIX: Record<Color, string> = {
+  negra: "B",
+  blanca: "W",
+  roja: "R",
+};
+
+/* ──────────────────────────────────────────────
    Shirt mockup (3-layer compositing)
 ────────────────────────────────────────────── */
 function ShirtMockup({
@@ -322,7 +333,7 @@ function ShirtMockup({
   view: "frente" | "detras";
 }) {
   const base = `/assets/Configurador/base/${color}-${view}.png`;
-  const frase = `/assets/Configurador/frases/${color}/${fraseCode}.png`;
+  const frase = `/assets/Configurador/frases/${fraseCode}${COLOR_SUFFIX[color]}.png`;
   const diseno = `/assets/Configurador/disenos/${disenoCode}.png`;
 
   const shirtBg =
