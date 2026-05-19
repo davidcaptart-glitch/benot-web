@@ -270,29 +270,92 @@ function SizeSelector({ sizes, onChange }: { sizes: SizeMap; onChange: (s: SizeM
 }
 
 /* ──────────────────────────────────────────────
-   Step 0 — Tipo de camiseta
+   Step 0 — Tipo de camiseta (con vídeo)
 ────────────────────────────────────────────── */
 function StepTipoSeleccion({ onSelect }: { onSelect: (tipo: TipoShirt) => void }) {
-  const types: Array<{ id: TipoShirt; icon: string; title: string; tag: string; desc: string; accent: string }> = [
-    { id: "personalizada", icon: "✦", title: "CAMISETA PERSONALIZADA", tag: "ELIGE COLOR · FRASE · DISEÑO", desc: "Configura tu camiseta a medida paso a paso. Tú eliges el color, la frase motivacional y el diseño.", accent: "bg-[#FF1E1E] text-white" },
-    { id: "running",       icon: "🏃", title: "CAMISETA RUNNING",       tag: "COLECCIÓN DEPORTIVA",          desc: "Camisetas técnicas BENOT diseñadas para correr. Diseños con identidad propia, listos para pedir.", accent: "bg-black text-white" },
-    { id: "yoteempujo",    icon: "❤️", title: "CAMISETA SOLIDARIA",     tag: "#YOTEEMPUJO",                  desc: "Únete al movimiento. Una camiseta, un mensaje, un propósito. 100% solidaria.", accent: "bg-[#FF1E1E] text-white" },
+  const types: Array<{
+    id: TipoShirt;
+    videoSrc: string;
+    icon: string;
+    title: string;
+    tag: string;
+    tagClass: string;
+    desc: string;
+  }> = [
+    {
+      id: "personalizada",
+      videoSrc: "/assets/Webpage%20images/camiseta%20personalizada%20video.mp4",
+      icon: "✦",
+      title: "CAMISETA PERSONALIZADA",
+      tag: "ELIGE COLOR · FRASE · DISEÑO",
+      tagClass: "text-[#FF1E1E]",
+      desc: "Configura tu camiseta a medida paso a paso. Tú eliges el color, la frase motivacional y el diseño.",
+    },
+    {
+      id: "running",
+      videoSrc: "/assets/Webpage%20images/camiseta%20running%20video.mp4",
+      icon: "🏃",
+      title: "CAMISETA RUNNING",
+      tag: "COLECCIÓN DEPORTIVA",
+      tagClass: "text-gray-400",
+      desc: "Camisetas técnicas BENOT diseñadas para correr. Diseños con identidad propia, listos para pedir.",
+    },
+    {
+      id: "yoteempujo",
+      videoSrc: "/assets/Webpage%20images/camiseta%20solidaria%20video.mp4",
+      icon: "❤️",
+      title: "CAMISETA SOLIDARIA",
+      tag: "#YOTEEMPUJO",
+      tagClass: "text-[#FF1E1E]",
+      desc: "Únete al movimiento. Una camiseta, un mensaje, un propósito. 100% solidaria.",
+    },
   ];
 
   return (
     <div className="fade-in-up max-w-[960px]">
       <h2 className="font-bebas tracking-widest text-4xl sm:text-5xl mb-3">¿QUÉ CAMISETA QUIERES?</h2>
-      <p className="font-bebas tracking-widest text-gray-400 text-sm mb-12 tracking-widest">SELECCIONA EL TIPO PARA CONTINUAR</p>
+      <p className="font-bebas tracking-widest text-gray-400 text-sm mb-12">SELECCIONA EL TIPO PARA CONTINUAR</p>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         {types.map((t) => (
-          <button key={t.id} onClick={() => onSelect(t.id)} className="group flex flex-col text-left border-2 border-gray-200 hover:border-black transition-all duration-200 hover:shadow-xl">
-            <div className={`${t.accent} px-6 py-5`}>
-              <p className="font-bebas tracking-widest text-2xl leading-tight mb-0.5">{t.icon} {t.title}</p>
-              <p className="font-bebas tracking-widest text-xs opacity-80">{t.tag}</p>
+          <button
+            key={t.id}
+            onClick={() => onSelect(t.id)}
+            className="group flex flex-col text-left overflow-hidden bg-black border-2 border-transparent hover:border-[#FF1E1E] transition-all duration-300 hover:shadow-[0_0_40px_rgba(255,30,30,0.15)]"
+          >
+            {/* ── Vídeo con overlay ── */}
+            <div className="relative overflow-hidden h-64 sm:h-72 lg:h-80 flex-shrink-0">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video
+                src={t.videoSrc}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+              />
+              {/* Gradient — asegura legibilidad del texto */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+              {/* Texto sobre el vídeo */}
+              <div className="absolute bottom-0 left-0 right-0 p-5 pb-4">
+                <p className="font-bebas tracking-widest text-2xl leading-tight text-white mb-1">
+                  {t.icon} {t.title}
+                </p>
+                <p className={`font-bebas tracking-widest text-xs ${t.tagClass}`}>
+                  {t.tag}
+                </p>
+              </div>
             </div>
-            <div className="px-6 py-5 flex-1 flex flex-col justify-between">
-              <p className="font-bebas tracking-widest text-sm text-gray-500 leading-relaxed mb-6">{t.desc}</p>
-              <span className="font-bebas tracking-widest text-xs text-[#FF1E1E] flex items-center gap-1 group-hover:gap-2 transition-all">SELECCIONAR →</span>
+
+            {/* ── Descripción + CTA ── */}
+            <div className="px-5 py-4 flex-1 flex flex-col justify-between border-t border-white/10">
+              <p className="font-bebas tracking-widest text-sm text-gray-400 leading-relaxed mb-4">
+                {t.desc}
+              </p>
+              <span className="font-bebas tracking-widest text-xs text-[#FF1E1E] flex items-center gap-1 group-hover:gap-2 transition-all duration-200">
+                SELECCIONAR →
+              </span>
             </div>
           </button>
         ))}

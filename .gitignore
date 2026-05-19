@@ -20,6 +20,9 @@ public/assets/
 .env.test.local
 .env.production.local
 
+# Large binary assets — upload directly to server via SCP, not tracked in git
+assets/**/*.mp4
+
 # OS files
 .DS_Store
 Thumbs.db
