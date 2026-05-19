@@ -45,8 +45,8 @@ export default function ConfiguradorPage() {
   // Running — catálogo fijo: assets/Configurador/Running/
   const runningItems = getAssetFiles("Configurador/Running");
 
-  // Solidaria #YoTeEmpujo: assets/Configurador/#yoteempujo/
-  const yoteempujoItems = getAssetFiles("Configurador/#yoteempujo");
+  // Solidaria #YoTeEmpujo: assets/Configurador/yoteempujo/
+  const yoteempujoItems = getAssetFiles("Configurador/yoteempujo");
 
   return (
     <>
