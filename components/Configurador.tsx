@@ -625,7 +625,21 @@ function AddedScreen({ item, onAddMore, onViewCart }: { item: CartItem; onAddMor
 /* ──────────────────────────────────────────────
    Vista carrito
 ────────────────────────────────────────────── */
-function CartView({ cart, onRemove, onAddMore }: { cart: CartItem[]; onRemove: (idx: number) => void; onAddMore: () => void }) {
+function CartView({
+  cart,
+  onRemove,
+  onAddMore,
+  onCheckout,
+  checkoutLoading,
+  checkoutError,
+}: {
+  cart: CartItem[];
+  onRemove: (idx: number) => void;
+  onAddMore: () => void;
+  onCheckout: () => void;
+  checkoutLoading: boolean;
+  checkoutError: string | null;
+}) {
   return (
     <div className="fade-in-up max-w-[680px]">
       <h2 className="font-bebas tracking-widest text-4xl sm:text-5xl mb-10">TU CARRITO</h2>
@@ -673,7 +687,12 @@ function CartView({ cart, onRemove, onAddMore }: { cart: CartItem[]; onRemove: (
                     </p>
                   </div>
 
-                  <button onClick={() => onRemove(i)} className="flex-shrink-0 font-bebas tracking-widest text-xs text-gray-400 hover:text-[#FF1E1E] transition-colors px-2 py-1 border border-transparent hover:border-[#FF1E1E]" aria-label="Eliminar">
+                  <button
+                    onClick={() => onRemove(i)}
+                    disabled={checkoutLoading}
+                    className="flex-shrink-0 font-bebas tracking-widest text-xs text-gray-400 hover:text-[#FF1E1E] transition-colors px-2 py-1 border border-transparent hover:border-[#FF1E1E] disabled:opacity-40"
+                    aria-label="Eliminar"
+                  >
                     ✕
                   </button>
                 </div>
@@ -690,26 +709,54 @@ function CartView({ cart, onRemove, onAddMore }: { cart: CartItem[]; onRemove: (
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 mb-8">
-            <button onClick={onAddMore} className="font-bebas tracking-widest text-sm border-2 border-gray-300 text-gray-600 px-6 py-3 hover:border-black hover:text-black transition-all duration-200">
+            <button
+              onClick={onAddMore}
+              disabled={checkoutLoading}
+              className="font-bebas tracking-widest text-sm border-2 border-gray-300 text-gray-600 px-6 py-3 hover:border-black hover:text-black transition-all duration-200 disabled:opacity-40"
+            >
               + AÑADIR OTRA CAMISETA
             </button>
           </div>
 
+          {/* Error */}
+          {checkoutError && (
+            <div className="bg-red-50 border-2 border-[#FF1E1E] p-4 mb-6">
+              <p className="font-bebas tracking-widest text-sm text-[#FF1E1E]">{checkoutError}</p>
+            </div>
+          )}
+
+          {/* Checkout button */}
           <div className="border-t-2 border-gray-100 pt-8">
             <p className="font-bebas tracking-widest text-xs text-gray-400 mb-4 leading-relaxed">
-              AL CONFIRMAR SE ABRIRÁ TELEGRAM CON TU PEDIDO COMPLETO. EL BOT LO PROCESARÁ DIRECTAMENTE Y PROCEDERÁ AL PAGO.
+              SERÁS REDIRIGIDO A LA PASARELA DE PAGO SEGURA. ACEPTAMOS TARJETA, SEPA Y MÁS.
+              RECIBIRÁS CONFIRMACIÓN POR EMAIL.
             </p>
-            <a
-              href={buildTelegramUrl(cart)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-3 font-bebas tracking-widest text-sm bg-[#FF1E1E] text-white px-10 py-4 hover:bg-black transition-all duration-200 w-full sm:w-auto justify-center"
+            <button
+              onClick={onCheckout}
+              disabled={checkoutLoading}
+              className={`inline-flex items-center gap-3 font-bebas tracking-widest text-sm px-10 py-4 transition-all duration-200 w-full sm:w-auto justify-center ${
+                checkoutLoading
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-[#FF1E1E] text-white hover:bg-black"
+              }`}
             >
-              <svg className="w-5 h-5 fill-white flex-shrink-0" viewBox="0 0 24 24">
-                <path d="M22.265 2.428a1.99 1.99 0 0 0-2.021-.338L2.38 9.005C1.17 9.478.363 10.62.363 11.913c0 1.293.808 2.435 2.017 2.908l4.102 1.573 1.56 5.023c.166.534.647.903 1.205.903.33 0 .648-.12.898-.337l2.515-2.24 4.48 3.494c.282.22.624.34.97.34.847 0 1.567-.598 1.717-1.428l3.04-16.77a1.99 1.99 0 0 0-.602-1.951z" />
-              </svg>
-              FINALIZAR PEDIDO EN TELEGRAM
-            </a>
+              {checkoutLoading ? (
+                <>
+                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  REDIRIGIENDO...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5 fill-white flex-shrink-0" viewBox="0 0 24 24">
+                    <path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" />
+                  </svg>
+                  PAGAR AHORA
+                </>
+              )}
+            </button>
           </div>
         </>
       )}
@@ -741,6 +788,10 @@ export default function Configurador({ frasesByColor, disenosByCategory, running
   /* ── Cart ── */
   const [cart, setCart]         = useState<CartItem[]>([]);
   const [lastAdded, setLastAdded] = useState<CartItem | null>(null);
+
+  /* ── Stripe checkout ── */
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError,   setCheckoutError]   = useState<string | null>(null);
 
   /* ──────── Helpers ──────── */
   const resetPersonalizada = () => {
@@ -794,6 +845,29 @@ export default function Configurador({ frasesByColor, disenosByCategory, running
   };
 
   const removeFromCart = (idx: number) => setCart((p) => p.filter((_, i) => i !== idx));
+
+  /* ── Stripe checkout ── */
+  const handleStripeCheckout = async () => {
+    setCheckoutLoading(true);
+    setCheckoutError(null);
+    try {
+      const res  = await fetch("/api/checkout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ cart }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? "Error al iniciar el pago");
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      setCheckoutError(
+        err instanceof Error ? err.message : "Error al conectar con la pasarela de pago. Inténtalo de nuevo."
+      );
+      setCheckoutLoading(false);
+    }
+  };
 
   /* ── Personalizada nav ── */
   const canNext =
@@ -905,7 +979,14 @@ export default function Configurador({ frasesByColor, disenosByCategory, running
                 ← SEGUIR COMPRANDO
               </button>
             </div>
-            <CartView cart={cart} onRemove={removeFromCart} onAddMore={goTypeSelect} />
+            <CartView
+              cart={cart}
+              onRemove={removeFromCart}
+              onAddMore={goTypeSelect}
+              onCheckout={handleStripeCheckout}
+              checkoutLoading={checkoutLoading}
+              checkoutError={checkoutError}
+            />
           </>
         )}
 

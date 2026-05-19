@@ -1,58 +1,47 @@
-name: Deploy BENOT to GitHub Pages
+name: Deploy BENOT a Hetzner
 
 on:
   push:
     branches:
-      - main          # Trigger on every push to main
-  workflow_dispatch:  # Allow manual trigger from GitHub UI
+      - main
+  workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-# Only one deployment at a time; cancel in-progress if a new push arrives
 concurrency:
-  group: "pages"
+  group: deploy
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build Next.js static export
+  deploy:
+    name: Build y despliegue en Hetzner
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      # ── Despliegue via SSH ────────────────────────────
+      # Secretos necesarios en GitHub → Settings → Secrets:
+      #   HETZNER_HOST        IP o dominio del servidor
+      #   HETZNER_USER        Usuario SSH (normalmente root o deploy)
+      #   HETZNER_SSH_KEY     Clave privada SSH (el servidor debe tener la pública)
+      - name: Desplegar en servidor
+        uses: appleboy/ssh-action@v1
         with:
-          node-version: "20"
-          cache: "npm"
+          host:     ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key:      ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/benot-web
 
-      - name: Install dependencies
-        run: npm ci
+            # Actualizar código
+            git pull origin main
 
-      - name: Build (includes prebuild copy-assets)
-        run: npm run build
-        env:
-          NODE_ENV: production
+            # Reconstruir imagen y reiniciar el contenedor
+            docker compose build --no-cache web
+            docker compose up -d --no-deps --force-recreate web
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: out   # Next.js static export output directory
+            # Limpiar imágenes antiguas
+            docker image prune -f
 
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+            echo "✅ Despliegue completado"
