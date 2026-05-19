@@ -13,11 +13,11 @@ export const metadata: Metadata = {
 export default function ConfiguradorPage() {
   const frases = getAssetFiles("Frases");
 
-  // Merge all graphic categories as the "diseño" pool
+  // Solo Anime y Guerreros son configurables.
+  // Running y YoTeEmpujo son colecciones con diseño fijo — no aplican.
   const disenos = [
     ...getAssetFiles("Anime"),
     ...getAssetFiles("Guerreros"),
-    ...getAssetFiles("Running"),
   ];
 
   return (
