@@ -7,10 +7,10 @@ export const LEGAL = {
   // ── Identidad del responsable ─────────────────────────────────────────────
   // TODO: rellena los datos reales del titular antes de publicar
   empresa:   "BENOT",
-  titular:   "BENOT",                  // Nombre completo / razón social
-  nif:       "PENDIENTE",              // NIF o CIF
-  domicilio: "PENDIENTE",              // Dirección postal completa
-  ciudad:    "España",
+  titular:   "David Franco Ruiz",
+  nif:       "47830220H",
+  domicilio: "C/Sant Cristòfol 5, 2º 3ª, 08784 Piera (Barcelona)",
+  ciudad:    "Piera (Barcelona)",
 
   // ── Contacto ─────────────────────────────────────────────────────────────
   // Cambia el email aquí y se actualiza en aviso legal, privacidad y cookies
