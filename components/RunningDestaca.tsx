@@ -38,33 +38,59 @@ const SHIRT_PATH =
   "M35 12 L8 42 L28 50 L23 118 L97 118 L92 50 L112 42 L85 12 Q72 22 60 22 Q48 22 35 12 Z";
 
 function ShirtSVG({
-  fill, stroke = "transparent", className = "",
+  fill, stroke = "transparent", className = "", style,
 }: {
-  fill: string; stroke?: string; className?: string;
+  fill: string; stroke?: string; className?: string; style?: React.CSSProperties;
 }) {
   return (
-    <svg viewBox="0 0 120 130" className={className} aria-hidden>
+    <svg viewBox="0 0 120 130" className={className} style={style} aria-hidden>
       <path d={SHIRT_PATH} fill={fill} stroke={stroke} strokeWidth="2" />
     </svg>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────
+   Category → hex colour (for the BENOT shirt SVG in the crowd)
+───────────────────────────────────────────────────────────────── */
+const CATEGORY_HEX: Record<string, string> = {
+  white:  "#FFFFFF",
+  black:  "#111111",
+  red:    "#FF1E1E",
+  orange: "#F97316",
+  yellow: "#EAB308",
+  green:  "#16A34A",
+  cyan:   "#06B6D4",
+  blue:   "#1D4ED8",
+  purple: "#7C3AED",
+  gray:   "#9CA3AF",
+};
+const CATEGORY_STROKE: Record<string, string> = {
+  white: "#E5E7EB",
+};
+
+/* ─────────────────────────────────────────────────────────────────
    Crowd grid
    – Race shirts: small SVG icons with organic variation
-   – BENOT centre: actual shirt photo, clearly larger
+   – BENOT centre: coloured SVG shirt, clearly larger, with glow
 ───────────────────────────────────────────────────────────────── */
 function CrowdGrid({
   raceHex,
-  shirt,          // currently highlighted BENOT shirt
+  benotHex,
+  benotStroke,
 }: {
-  raceHex: string;
-  shirt:   Recommendation["shirt"] | null;
+  raceHex:     string;
+  benotHex:    string;   // colour of the selected BENOT shirt
+  benotStroke: string;
 }) {
   const raceStroke =
     raceHex === "#D0D0D0" || raceHex === "#E8E8E8"
       ? "#ADADAD"
       : "rgba(0,0,0,0.10)";
+
+  const glowColor =
+    benotHex === "#FFFFFF"
+      ? "rgba(200,200,200,0.7)"
+      : benotHex + "CC";
 
   return (
     <div className="flex flex-col items-center gap-2 sm:gap-3">
@@ -81,44 +107,17 @@ function CrowdGrid({
               }}
             >
               {cell.isBenot ? (
-                /* ── BENOT centre: real shirt photo ── */
-                <div className="relative">
-                  {shirt ? (
-                    <div
-                      className="
-                        w-11 h-11 sm:w-16 sm:h-16
-                        overflow-hidden rounded-sm
-                        border-[3px] border-white
-                        shadow-2xl
-                        ring-2 ring-white/60
-                        transition-all duration-500
-                      "
-                      style={{
-                        filter: "drop-shadow(0 0 12px rgba(255,255,255,0.6))",
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={shirt.src}
-                        alt={shirt.code}
-                        className="w-full h-full object-cover object-left"
-                      />
-                    </div>
-                  ) : (
-                    /* Placeholder before any selection */
-                    <div
-                      className="
-                        w-11 h-11 sm:w-16 sm:h-16
-                        rounded-sm border-[3px] border-white/40
-                        bg-white/20 flex items-center justify-center
-                      "
-                    >
-                      <span className="text-white/50 text-lg">?</span>
-                    </div>
-                  )}
+                /* ── BENOT centre: coloured SVG, scaled up, with glow ── */
+                <div className="relative" style={{ transform: "scale(1.7)" }}>
+                  <ShirtSVG
+                    fill={benotHex}
+                    stroke={benotStroke}
+                    className="w-7 h-8 sm:w-9 sm:h-10 transition-all duration-500"
+                    style={{ filter: `drop-shadow(0 0 8px ${glowColor})` } as React.CSSProperties}
+                  />
                   {/* "TÚ" label below */}
-                  <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                    <span className="font-bebas tracking-widest text-[9px] text-white/70 bg-black/40 px-1.5 py-0.5 rounded-sm">
+                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                    <span className="font-bebas tracking-widest text-[8px] text-zinc-500 bg-white/80 px-1 py-0.5 rounded-sm">
                       TÚ
                     </span>
                   </div>
@@ -162,7 +161,7 @@ function RecCard({
         group w-full flex flex-col text-left bg-white overflow-hidden
         border-2 transition-all duration-300
         ${isSelected
-          ? "border-black shadow-2xl scale-[1.01]"
+          ? "border-[#FF1E1E] shadow-2xl scale-[1.01]"
           : "border-gray-100 hover:border-gray-400 hover:shadow-xl"
         }
       `}
@@ -190,7 +189,7 @@ function RecCard({
 
         {/* Selected ring */}
         {isSelected && (
-          <div className="absolute inset-0 ring-[3px] ring-inset ring-black pointer-events-none" />
+          <div className="absolute inset-0 ring-[3px] ring-inset ring-[#FF1E1E] pointer-events-none" />
         )}
 
         {/* Race vs Benot swatches */}
@@ -255,9 +254,14 @@ export default function RunningDestaca() {
   const [selectedBenotIdx, setSelectedBenotIdx] = useState<0 | 1>(0);
   const [visible,          setVisible]          = useState(false);
 
-  const raceCfg = RACE_COLORS.find((c) => c.id === raceColor);
-  const recs    = raceColor ? getRecommendations(raceColor) : [];
+  const raceCfg   = RACE_COLORS.find((c) => c.id === raceColor);
+  const recs      = raceColor ? getRecommendations(raceColor) : [];
   const highlighted = recs[selectedBenotIdx] ?? null;
+
+  // Derive crowd BENOT shirt colour from the highlighted recommendation
+  const benotCategory = highlighted?.shirt.category ?? "cyan";
+  const benotHex      = CATEGORY_HEX[benotCategory]    ?? "#06B6D4";
+  const benotStroke   = CATEGORY_STROKE[benotCategory] ?? "transparent";
 
   /* Reset selection index when race colour changes */
   useEffect(() => {
@@ -352,7 +356,8 @@ export default function RunningDestaca() {
 
             <CrowdGrid
               raceHex={raceCfg?.crowd ?? "#9CA3AF"}
-              shirt={highlighted?.shirt ?? null}
+              benotHex={benotHex}
+              benotStroke={benotStroke}
             />
 
             {/* Legend */}
@@ -373,17 +378,11 @@ export default function RunningDestaca() {
               </div>
               <div className="w-px h-4 bg-zinc-300" />
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-sm overflow-hidden border border-zinc-300">
-                  {highlighted && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={highlighted.shirt.src}
-                      alt=""
-                      className="w-full h-full object-cover object-left"
-                      aria-hidden
-                    />
-                  )}
-                </div>
+                <ShirtSVG
+                  fill={benotHex}
+                  stroke={benotStroke}
+                  className="w-4 h-5"
+                />
                 <span className="font-bebas tracking-widest text-[11px] text-zinc-700">
                   TÚ CON BENOT
                 </span>
