@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ordersRepo } from "@/lib/db";
-import type { OrderStatus } from "@/lib/types";
+import type { OrderStatus, ProductionStatus } from "@/lib/types";
 
 /* ══════════════════════════════════════════════════════════════════
    GET  /api/orders/[ref]   — fetch order by BN-XXXX reference
-   PATCH /api/orders/[ref]  — update order status
+   PATCH /api/orders/[ref]  — update order status OR per-item production status
+
+   PATCH body variants:
+     { status: OrderStatus }
+     { itemId: string; productionStatus: ProductionStatus }
 
    Auth: requires x-admin-secret header.
 ══════════════════════════════════════════════════════════════════ */
+
+const VALID_ORDER_STATUSES: OrderStatus[] = [
+  "pending", "paid", "production_sent", "in_production", "shipped", "delivered",
+];
+const VALID_PRODUCTION_STATUSES: ProductionStatus[] = [
+  "pending", "queued", "printing", "completed", "shipped",
+];
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.ADMIN_SECRET;
@@ -45,18 +56,47 @@ export async function PATCH(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const body = await req.json() as { status?: OrderStatus };
-  const VALID_STATUSES: OrderStatus[] = [
-    "pending", "paid", "production_sent", "in_production", "shipped", "delivered",
-  ];
+  const body = await req.json() as {
+    // Option A: update overall order status
+    status?: OrderStatus;
+    // Option B: update a specific item's production status
+    itemId?:           string;
+    productionStatus?: ProductionStatus;
+  };
 
-  if (!body.status || !VALID_STATUSES.includes(body.status)) {
-    return NextResponse.json(
-      { error: `Invalid status. Valid values: ${VALID_STATUSES.join(", ")}` },
-      { status: 400 }
-    );
+  /* ── Option A: order-level status ───────────────────────────── */
+  if (body.status !== undefined) {
+    if (!VALID_ORDER_STATUSES.includes(body.status)) {
+      return NextResponse.json(
+        { error: `Invalid status. Valid values: ${VALID_ORDER_STATUSES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    const updated = ordersRepo.updateStatus(order.id, body.status);
+    return NextResponse.json({ order: updated });
   }
 
-  const updated = ordersRepo.updateStatus(order.id, body.status);
-  return NextResponse.json({ order: updated });
+  /* ── Option B: per-item production status ────────────────────── */
+  if (body.itemId !== undefined && body.productionStatus !== undefined) {
+    if (!VALID_PRODUCTION_STATUSES.includes(body.productionStatus)) {
+      return NextResponse.json(
+        { error: `Invalid productionStatus. Valid values: ${VALID_PRODUCTION_STATUSES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    const updated = ordersRepo.updateItemProductionStatus(
+      order.id,
+      body.itemId,
+      body.productionStatus,
+    );
+    if (!updated) {
+      return NextResponse.json({ error: "Item not found in order" }, { status: 404 });
+    }
+    return NextResponse.json({ order: updated });
+  }
+
+  return NextResponse.json(
+    { error: "Provide either { status } or { itemId, productionStatus }" },
+    { status: 400 }
+  );
 }

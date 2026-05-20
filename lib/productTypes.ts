@@ -1,7 +1,7 @@
 /**
  * Product type utilities:
  * – CartItem → ProductType mapping
- * – Asset path resolution (for email attachments)
+ * – Asset path resolution (for email attachments + snapshots)
  * – CartItem → OrderItem conversion
  */
 import path from "path";
@@ -43,26 +43,27 @@ function existsOrNull(p: string): string | null {
 }
 
 /* ── Resolved asset ──────────────────────────────────────────────── */
-// A single design file with metadata for email rendering.
+// A single design file with metadata for email rendering and snapshots.
 export interface ResolvedAsset {
-  /** Absolute filesystem path to the image file */
-  path: string;
-  /** Human-readable label shown in the provider email (Spanish) */
-  label: string;
-  /** Suggested filename for the email attachment */
-  filename: string;
+  /** Absolute filesystem path to the source image file */
+  path:      string;
+  /** Human-readable zone label (Spanish), used in emails and PDFs */
+  label:     string;
+  /** Filename for the order snapshot folder and email attachments */
+  filename:  string;
+  /** Zone identifier — set for running zones, preview, etc. */
+  zoneId?:   string;
 }
 
 /* ── Resolve filesystem paths for the design assets ──────────────── */
 //
-// Returns a structured list of assets (image path + label + filename)
-// ready to be used as Nodemailer attachments with contextual labels.
+// Returns a structured list of assets for each cart item.
+// Each entry includes the source path, a label, a suggested filename,
+// and an optional zoneId (for running fullprint zone matching).
 //
 // Running fullprint path convention:
 //   <ASSETS_BASE>/Configurador/Running/<zoneId>/<code>.png
 //   <ASSETS_BASE>/Configurador/Running/preview/<code>.png
-//
-// The caller must check `path` exists before attaching (already done here).
 //
 export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
   const assets: ResolvedAsset[] = [];
@@ -82,6 +83,7 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
         path:     phrasePath,
         label:    "Frase (delante)",
         filename: `frase_${item.fraseCode}.png`,
+        zoneId:   "front",
       });
     }
 
@@ -96,6 +98,7 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
         path:     designPath,
         label:    "Diseño (detrás)",
         filename: `diseno_${item.disenoCode}.png`,
+        zoneId:   "back",
       });
     }
 
@@ -107,6 +110,7 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
         path:     frontResult,
         label:    "Preview delante",
         filename: `preview_front_${item.fraseCode}.png`,
+        zoneId:   "preview_front",
       });
     }
     if (backResult) {
@@ -114,13 +118,14 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
         path:     backResult,
         label:    "Preview detrás",
         filename: `preview_back_${item.disenoCode}.png`,
+        zoneId:   "preview_back",
       });
     }
   }
 
   /* ── running fullprint (multi-zone) ─────────────────────────── */
   if (item.tipo === "running") {
-    // Each print zone is stored in its own subfolder: Running/<zoneId>/<code>.png
+    // Each print zone lives in its own subfolder: Running/<zoneId>/<code>.png
     for (const zone of item.zones) {
       const p = existsOrNull(
         assetPath("Configurador", "Running", zone.zoneId, `${zone.code}.png`)
@@ -130,6 +135,7 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
           path:     p,
           label:    zone.label,
           filename: `${zone.zoneId}_${zone.code}.png`,
+          zoneId:   zone.zoneId,
         });
       }
     }
@@ -144,6 +150,7 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
           path:     p,
           label:    "Preview final",
           filename: `preview_${item.finalPreview}.png`,
+          zoneId:   "preview",
         });
       }
     }
@@ -159,6 +166,7 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
         path:     p,
         label:    "Diseño",
         filename: `yoteempujo_${item.code}.png`,
+        zoneId:   "front",
       });
     }
   }
@@ -175,21 +183,22 @@ export function cartItemToOrderItem(item: CartItem): OrderItem {
     1,
     Object.values(sizes).reduce((a, b) => a + b, 0)
   );
-  const unitPrice   = PRICES[item.tipo] ?? 2990;
+  const unitPrice = PRICES[item.tipo] ?? 2990;
 
   const base: Omit<
     OrderItem,
     "phraseCode" | "designCode" | "designCategory" | "color" |
     "printZones" | "finalPreview" | "itemCode"
   > = {
-    id:          randomUUID(),
+    id:               randomUUID(),
     productType,
-    productName: PRODUCT_TYPE_NAMES[productType],
-    providerId:  provider?.id ?? null,
+    productName:      PRODUCT_TYPE_NAMES[productType],
+    providerId:       provider?.id ?? null,
+    productionStatus: "pending",
     sizes,
     quantity,
     unitPrice,
-    subtotal:    unitPrice * quantity,
+    subtotal:         unitPrice * quantity,
   };
 
   if (item.tipo === "personalizada") {

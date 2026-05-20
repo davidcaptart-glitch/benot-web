@@ -10,9 +10,8 @@
 import nodemailer from "nodemailer";
 import type Mail  from "nodemailer/lib/mailer";
 
-import type { Order, OrderItem, Provider } from "./types";
-import { resolveAssetPaths, sizesLabel }   from "./productTypes";
-import type { CartItem }                    from "./types";
+import type { FrozenAsset, Order, OrderItem, Provider } from "./types";
+import { sizesLabel } from "./productTypes";
 
 /* ── Transporter ─────────────────────────────────────────────────── */
 function createTransporter() {
@@ -256,26 +255,32 @@ export async function sendCustomerConfirmationEmail(order: Order): Promise<void>
    2. PROVIDER PRODUCTION EMAIL  (with image attachments per zone)
 ══════════════════════════════════════════════════════════════════ */
 export async function sendProviderProductionEmail(
-  order:     Order,
-  provider:  Provider,
-  items:     OrderItem[],
-  cartItems: CartItem[],
+  order:    Order,
+  provider: Provider,
+  items:    OrderItem[],
+  assets:   FrozenAsset[],   // frozen snapshot paths for this provider's items
+  pdfPath?: string,           // optional production-sheet PDF to attach
 ): Promise<void> {
-  // Resolve all assets for the items going to this provider
+  // Build attachments from the frozen (immutable) asset paths
   const attachments: Mail.Attachment[] = [];
   const seenPaths = new Set<string>();
 
-  for (const cartItem of cartItems) {
-    const resolvedAssets = resolveAssetPaths(cartItem);
-    for (const asset of resolvedAssets) {
-      if (!seenPaths.has(asset.path)) {
-        seenPaths.add(asset.path);
-        attachments.push({
-          filename: asset.filename,
-          path:     asset.path,
-        });
-      }
+  for (const asset of assets) {
+    if (!seenPaths.has(asset.absolutePath)) {
+      seenPaths.add(asset.absolutePath);
+      attachments.push({
+        filename: asset.filename,
+        path:     asset.absolutePath,
+      });
     }
+  }
+
+  // Attach the production PDF last
+  if (pdfPath) {
+    attachments.push({
+      filename: `production-sheet-${order.orderRef}.pdf`,
+      path:     pdfPath,
+    });
   }
 
   const addr = order.shippingAddress;
@@ -334,7 +339,7 @@ export async function sendProviderProductionEmail(
       Fecha de pedido: ${new Date(order.createdAt).toLocaleDateString("es-ES", { day:"numeric", month:"long", year:"numeric" })}<br/>
       Importe total del pedido: <strong>${formatCents(order.totalAmount)}</strong><br/>
       ${attachments.length > 0
-        ? `Archivos adjuntos (${attachments.length}): ${attachments.map(a => a.filename).join(", ")}`
+        ? `Archivos adjuntos (${attachments.length}): ${attachments.map(a => String(a.filename)).join(", ")}`
         : "No se encontraron archivos de diseño en el servidor."}
     </p>
   </div>

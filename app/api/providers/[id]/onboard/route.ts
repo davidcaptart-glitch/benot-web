@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { providersRepo } from "@/lib/db";
+import type { StripeConnectStatus } from "@/lib/types";
 
 /* ══════════════════════════════════════════════════════════════════
    POST /api/providers/[id]/onboard
@@ -44,7 +45,7 @@ export async function POST(
   /* ── Create Connected Account if this provider doesn't have one ── */
   let accountId = provider.stripeAccountId;
   if (!accountId) {
-    const account = await stripe.accounts.create({
+    const created = await stripe.accounts.create({
       type:         "express",
       country:      "ES",
       email:        provider.email,
@@ -57,10 +58,16 @@ export async function POST(
         mcc:  "5699", // Misc. Apparel & Accessory Shops
       },
     });
-    accountId = account.id;
+    accountId = created.id;
 
-    // Persist the Stripe account ID
-    providersRepo.save({ ...provider, stripeAccountId: accountId });
+    // Persist the Stripe account ID and initial connect status
+    const stripeConnectStatus: StripeConnectStatus = {
+      payoutsEnabled:   created.payouts_enabled   ?? false,
+      chargesEnabled:   created.charges_enabled   ?? false,
+      detailsSubmitted: created.details_submitted ?? false,
+      lastSyncedAt:     new Date().toISOString(),
+    };
+    providersRepo.save({ ...provider, stripeAccountId: accountId, stripeConnectStatus });
   }
 
   /* ── Generate Account Link (expires in ~10 min) ──────────────── */

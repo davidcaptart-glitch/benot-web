@@ -4,19 +4,29 @@ import Stripe from "stripe";
 import type { Order, OrderItem, ShippingAddress } from "@/lib/types";
 import { ordersRepo, pendingCartsRepo, providersRepo, generateOrderRef } from "@/lib/db";
 import { cartItemToOrderItem } from "@/lib/productTypes";
+import { snapshotOrderAssets, generateProductionSheet } from "@/lib/snapshot";
 import { sendCustomerConfirmationEmail, sendProviderProductionEmail } from "@/lib/email";
 
 /* ══════════════════════════════════════════════════════════════════
    POST /api/webhook
-   Receives Stripe events, creates & persists orders, routes to
-   providers, sends emails, notifies Telegram.
+
+   Full order pipeline on payment completion:
+     1. Verify Stripe signature
+     2. Idempotency guard (skip duplicate events)
+     3. Recover full cart from pendingCartsRepo
+     4. Build OrderItems (with productionStatus = "pending")
+     5. Persist Order
+     6. Snapshot all design assets to /data/orders/{orderRef}/
+     7. Update Order with frozenAssets
+     8. Per provider: generate production PDF + send email with attachments
+     9. Mark items as "queued", order as "production_sent"
+    10. Clean up pending cart
+    11. Notify Telegram
 
    Required env:
-     STRIPE_SECRET_KEY
-     STRIPE_WEBHOOK_SECRET
-     TELEGRAM_BOT_TOKEN          (optional)
-     TELEGRAM_ADMIN_CHAT_ID      (optional)
+     STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
      SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / EMAIL_FROM
+     TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_CHAT_ID   (optional)
 ══════════════════════════════════════════════════════════════════ */
 export async function POST(req: NextRequest) {
   const stripeKey     = process.env.STRIPE_SECRET_KEY;
@@ -28,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   const stripe = new Stripe(stripeKey);
 
-  /* ── Verify Stripe signature ─────────────────────────────────── */
+  /* ── 1. Verify Stripe signature ──────────────────────────────── */
   const body = await req.text();
   const sig  = req.headers.get("stripe-signature") ?? "";
 
@@ -40,38 +50,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Firma inválida" }, { status: 400 });
   }
 
-  /* ── Only process completed payments ────────────────────────── */
   if (event.type !== "checkout.session.completed") {
     return NextResponse.json({ received: true });
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
 
-  /* ── Idempotency: skip if order already exists ───────────────── */
+  /* ── 2. Idempotency guard ────────────────────────────────────── */
   if (ordersRepo.findBySessionId(session.id)) {
-    console.log(`[webhook] Order for session ${session.id} already exists — skip`);
+    console.log(`[webhook] Session ${session.id} already processed — skip`);
     return NextResponse.json({ received: true });
   }
 
   try {
-    /* ── Expand line items for Telegram notification ─────────── */
+    /* ── 3. Recover full cart ────────────────────────────────── */
+    const pendingCart = pendingCartsRepo.findBySessionId(session.id);
+    const cartItems   = pendingCart?.cart ?? [];
+
+    /* ── 4. Build order items ────────────────────────────────── */
+    const orderItems: OrderItem[] = cartItems.map(cartItemToOrderItem);
+
+    /* ── 5. Amounts + shipping ───────────────────────────────── */
+    const subtotalAmount = orderItems.reduce((s, i) => s + i.subtotal, 0);
+
+    // Expand line_items for Telegram; also used to get shipping rate
     const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
       expand: ["line_items"],
     });
 
-    /* ── Recover full cart from pending store ─────────────────── */
-    const pendingCart = pendingCartsRepo.findBySessionId(session.id);
-    const cartItems   = pendingCart?.cart ?? [];
-
-    /* ── Build order items ───────────────────────────────────── */
-    const orderItems: OrderItem[] = cartItems.map(cartItemToOrderItem);
-
-    /* ── Amounts ─────────────────────────────────────────────── */
-    const subtotalAmount = orderItems.reduce((s, i) => s + i.subtotal, 0);
     const shippingAmount = session.shipping_cost?.amount_total ?? 0;
     const totalAmount    = session.amount_total ?? subtotalAmount + shippingAmount;
 
-    /* ── Shipping details ────────────────────────────────────── */
     const sd       = (session as unknown as { shipping_details?: { address?: Stripe.Address | null; name?: string | null } | null }).shipping_details;
     const customer = session.customer_details;
 
@@ -87,7 +96,6 @@ export async function POST(req: NextRequest) {
         }
       : undefined;
 
-    /* ── Shipping option label ───────────────────────────────── */
     let shippingOption: string | undefined;
     if (fullSession.shipping_cost?.shipping_rate) {
       try {
@@ -95,13 +103,11 @@ export async function POST(req: NextRequest) {
           fullSession.shipping_cost.shipping_rate as string
         );
         shippingOption = rate.display_name ?? undefined;
-      } catch {
-        /* non-critical */
-      }
+      } catch { /* non-critical */ }
     }
 
-    /* ── Persist order ───────────────────────────────────────── */
-    const now   = new Date().toISOString();
+    /* ── 5b. Persist Order ───────────────────────────────────── */
+    const now = new Date().toISOString();
     const order: Order = {
       id:               crypto.randomUUID(),
       orderRef:         generateOrderRef(),
@@ -121,16 +127,27 @@ export async function POST(req: NextRequest) {
       updatedAt:        now,
     };
     ordersRepo.save(order);
+    console.log(`[webhook] Order ${order.orderRef} created`);
 
-    /* ── Send customer confirmation email ────────────────────── */
+    /* ── 6. Snapshot design assets ───────────────────────────── */
+    let frozenAssets = order.frozenAssets ?? [];
+    try {
+      frozenAssets = snapshotOrderAssets(order.orderRef, cartItems);
+      ordersRepo.save({ ...order, frozenAssets });
+      console.log(`[webhook] Snapshotted ${frozenAssets.length} assets for ${order.orderRef}`);
+    } catch (err) {
+      console.error(`[webhook] Asset snapshot failed for ${order.orderRef}:`, err);
+    }
+
+    /* ── 7. Send customer confirmation ───────────────────────── */
     if (order.customerEmail) {
       sendCustomerConfirmationEmail(order).catch((err) =>
-        console.error(`[webhook] Customer email failed for ${order.orderRef}:`, err)
+        console.error(`[webhook] Customer email failed (${order.orderRef}):`, err)
       );
     }
 
-    /* ── Route items to providers & send production emails ───── */
-    // Group order items by provider
+    /* ── 8. Route to providers → PDF → email ─────────────────── */
+    // Group order items by provider, keeping track of which cart items belong
     const byProvider = new Map<string, { items: OrderItem[]; cartIdx: number[] }>();
 
     orderItems.forEach((item, idx) => {
@@ -140,34 +157,56 @@ export async function POST(req: NextRequest) {
       byProvider.get(pid)!.cartIdx.push(idx);
     });
 
+    const productionPdfs: Record<string, string> = {};
+
     for (const [providerId, { items, cartIdx }] of byProvider) {
       if (providerId === "__none__") continue;
       const provider = providersRepo.findById(providerId);
       if (!provider) continue;
 
-      // Matching cart items for asset path resolution
-      const matchingCartItems = cartIdx.map((i) => cartItems[i]).filter(Boolean);
+      // Filter frozen assets that belong to this provider's items
+      const providerAssets = frozenAssets.filter((a) => cartIdx.includes(a.cartItemIndex));
 
-      sendProviderProductionEmail(order, provider, items, matchingCartItems).catch((err) =>
-        console.error(`[webhook] Provider email failed (${providerId}) for ${order.orderRef}:`, err)
+      // Generate production PDF
+      let pdfPath: string | undefined;
+      try {
+        pdfPath = await generateProductionSheet(order, provider, items, providerAssets);
+        productionPdfs[providerId] = pdfPath;
+        console.log(`[webhook] PDF generated: ${pdfPath}`);
+      } catch (err) {
+        console.error(`[webhook] PDF generation failed (${providerId}):`, err);
+      }
+
+      // Send production email (fire-and-forget)
+      sendProviderProductionEmail(order, provider, items, providerAssets, pdfPath).catch((err) =>
+        console.error(`[webhook] Provider email failed (${providerId}):`, err)
       );
     }
 
-    // Update status to production_sent (fire-and-forget, best-effort)
-    ordersRepo.updateStatus(order.id, "production_sent");
+    /* ── 9. Update order with PDF paths + advance statuses ───── */
+    ordersRepo.save({
+      ...order,
+      frozenAssets,
+      productionPdfs,
+      status:    "production_sent",
+      updatedAt: new Date().toISOString(),
+      items: order.items.map((item) => ({
+        ...item,
+        productionStatus: item.providerId ? "queued" : "pending",
+      })),
+    });
 
-    /* ── Clean up pending cart ───────────────────────────────── */
+    /* ── 10. Clean up pending cart ───────────────────────────── */
     pendingCartsRepo.delete(session.id);
 
-    /* ── Notify Telegram ─────────────────────────────────────── */
+    /* ── 11. Notify Telegram ─────────────────────────────────── */
     notifyTelegram(order, fullSession).catch((err) =>
       console.error("[webhook] Telegram notification failed:", err)
     );
 
-    console.log(`[webhook] Order ${order.orderRef} created and processed.`);
   } catch (err) {
-    console.error("[webhook] Error processing payment:", err);
-    // Return 200 so Stripe doesn't retry — log the error for manual review
+    console.error("[webhook] Fatal error processing payment:", err);
+    // Return 200 so Stripe doesn't retry — log for manual review
   }
 
   return NextResponse.json({ received: true });
@@ -184,7 +223,6 @@ type ExpandedSession = Stripe.Checkout.Session & {
 async function notifyTelegram(order: Order, session: ExpandedSession) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId   = process.env.TELEGRAM_ADMIN_CHAT_ID;
-
   if (!botToken || !chatId) return;
 
   const total = (order.totalAmount / 100).toFixed(2);

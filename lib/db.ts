@@ -15,10 +15,12 @@ import type {
   Payout,
   PendingCart,
   ProductType,
+  ProductionStatus,
 } from "./types";
 
 /* ── Data directory (mounted as Docker volume /app/data) ─────────── */
-const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
+// Exported so other modules (snapshot, pdf) can derive sub-paths.
+export const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -82,6 +84,29 @@ export const ordersRepo = {
     const idx    = orders.findIndex((o) => o.id === id);
     if (idx < 0) return null;
     orders[idx] = { ...orders[idx], status, updatedAt: new Date().toISOString() };
+    writeJson(ORDERS_FILE, orders);
+    return orders[idx];
+  },
+
+  // Update the productionStatus of a single OrderItem within an order.
+  // Returns the updated Order, or null if the order or item is not found.
+  updateItemProductionStatus(
+    orderId:          string,
+    itemId:           string,
+    productionStatus: ProductionStatus,
+  ): Order | null {
+    const orders = this.all();
+    const idx    = orders.findIndex((o) => o.id === orderId);
+    if (idx < 0) return null;
+    const itemIdx = orders[idx].items.findIndex((i) => i.id === itemId);
+    if (itemIdx < 0) return null;
+    orders[idx] = {
+      ...orders[idx],
+      updatedAt: new Date().toISOString(),
+      items: orders[idx].items.map((item, i) =>
+        i === itemIdx ? { ...item, productionStatus } : item
+      ),
+    };
     writeJson(ORDERS_FILE, orders);
     return orders[idx];
   },

@@ -23,25 +23,48 @@ export type OrderStatus =
   | "shipped"          // en camino
   | "delivered";       // entregado
 
+// ── Per-item production status ───────────────────────────────────
+// Decoupled from Order.status so multi-provider orders can track
+// each item independently through the production pipeline.
+export type ProductionStatus =
+  | "pending"    // awaiting provider assignment / confirmation
+  | "queued"     // queued for printing
+  | "printing"   // currently being produced
+  | "completed"  // production done, ready for shipping
+  | "shipped";   // dispatched to customer
+
 // ── Sizes map ────────────────────────────────────────────────────
 export type SizeMap = Record<string, number>;
 
 // ── Print zone ───────────────────────────────────────────────────
-// Models a named area of the garment that receives an independent
-// print/design. Extend zoneId with new literals as needed.
+// A named area of the garment that receives an independent design.
+// Add new zoneIds as needed — the rest of the system adapts automatically.
 //
-// Known zone IDs:
-//   "front"        – Delante
-//   "back"         – Detrás
-//   "right_sleeve" – Manga derecha (siempre lleva el logo B de BENOT)
-//   "left_sleeve"  – Manga izquierda (reservado)
+// Known zone IDs (extend freely):
+//   "front"        – Diseño delantero
+//   "back"         – Diseño trasero
+//   "right_sleeve" – Manga derecha (siempre logo B de BENOT)
+//   "left_sleeve"  – Manga izquierda  (reservado)
 //   "neck_label"   – Etiqueta interior (reservado)
-//   "side_panel"   – Panel lateral (reservado)
+//   "side_panel"   – Panel lateral     (reservado)
 export interface PrintZone {
   zoneId:   string;   // unique identifier for the zone
-  label:    string;   // human-readable label in Spanish, used in emails
+  label:    string;   // human-readable label in Spanish (used in emails + PDF)
   code:     string;   // asset filename stem (without extension)
-  isFixed?: boolean;  // true = non-configurable by the customer (e.g. BENOT logo)
+  isFixed?: boolean;  // true = non-configurable zone (e.g. always the BENOT logo)
+}
+
+// ── Frozen asset ─────────────────────────────────────────────────
+// Immutable snapshot of a design file at the moment of purchase.
+// Copied to /data/orders/{orderRef}/ so future asset updates in
+// the configurador never affect past orders.
+export interface FrozenAsset {
+  cartItemIndex: number;   // which CartItem this asset belongs to
+  zoneId?:       string;   // zone this asset covers (if applicable)
+  label:         string;   // human-readable label  ("Diseño delantero", etc.)
+  filename:      string;   // filename used in the order folder & email attachments
+  absolutePath:  string;   // frozen copy path: /app/data/orders/BN-xxx/filename
+  originalPath:  string;   // source path at time of purchase (for audit trail)
 }
 
 // ── Cart items (front-end payload, preserved 1:1) ─────────────────
@@ -81,6 +104,9 @@ export interface OrderItem {
   productName: string;
   providerId:  string | null;
 
+  // Per-item production tracking (independent of Order.status)
+  productionStatus?: ProductionStatus;
+
   // --- premium_custom fields ---
   color?:           string;
   phraseCode?:      string;
@@ -88,8 +114,6 @@ export interface OrderItem {
   designCategory?:  string;
 
   // --- running_fullprint fields ---
-  // Each zone stored individually; zoneId drives asset lookup and
-  // email layout. Add future zones here without touching the schema.
   printZones?:   PrintZone[];
   finalPreview?: string;    // composite mockup/render code
 
@@ -129,19 +153,31 @@ export interface Order {
   shippingAmount:   number;   // cents
   totalAmount:      number;   // cents
   currency:         string;
+  // Asset snapshots — frozen at purchase time
+  frozenAssets?:    FrozenAsset[];
+  // Production PDF paths — one per provider (providerId → absolutePath)
+  productionPdfs?:  Record<string, string>;
   createdAt:        string;   // ISO8601
   updatedAt:        string;   // ISO8601
 }
 
 // ── Provider ─────────────────────────────────────────────────────
+export interface StripeConnectStatus {
+  payoutsEnabled:   boolean;
+  chargesEnabled:   boolean;
+  detailsSubmitted: boolean;
+  lastSyncedAt:     string;  // ISO8601
+}
+
 export interface Provider {
   id:                    string;
   name:                  string;
   email:                 string;
-  stripeAccountId?:      string;   // Stripe Connect Express account
+  stripeAccountId?:      string;         // Stripe Connect Express account
+  stripeConnectStatus?:  StripeConnectStatus;
   active:                boolean;
   supportedProductTypes: ProductType[];
-  feePercent:            number;   // BENOT margin kept (0-100)
+  feePercent:            number;         // BENOT margin kept (0-100)
   createdAt:             string;
 }
 
