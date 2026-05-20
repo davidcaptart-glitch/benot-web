@@ -8,9 +8,7 @@
  * Depends on: nodemailer  (npm i nodemailer @types/nodemailer)
  */
 import nodemailer from "nodemailer";
-import type Mail from "nodemailer/lib/mailer";
-import path       from "path";
-import fs         from "fs";
+import type Mail  from "nodemailer/lib/mailer";
 
 import type { Order, OrderItem, Provider } from "./types";
 import { resolveAssetPaths, sizesLabel }   from "./productTypes";
@@ -53,7 +51,11 @@ const CSS = `
   .address-box { background:#f5f5f3; padding:20px 24px; margin-bottom:32px; font-size:13px; color:#333; line-height:1.7; }
   .footer { background:#111; padding:24px 40px; text-align:center; color:#555; font-size:10px; letter-spacing:0.15em; }
   .divider { border:none; border-top:1px solid #e5e5e5; margin:24px 0; }
-  .badge { display:inline-block; background:#FF1E1E; color:#fff; font-size:10px; font-weight:700; letter-spacing:0.15em; padding:3px 8px; margin-left:6px; vertical-align:middle; }
+  .zone-table { width:100%; border-collapse:collapse; margin:12px 0 20px; }
+  .zone-table th { background:#000; color:#FF1E1E; font-size:10px; letter-spacing:0.18em; font-weight:700; padding:8px 12px; text-align:left; }
+  .zone-table td { padding:10px 12px; border-bottom:1px solid #f0f0f0; color:#111; font-size:13px; vertical-align:middle; }
+  .zone-fixed { color:#888; font-size:10px; letter-spacing:0.1em; }
+  .badge-fixed { display:inline-block; background:#f5f5f3; color:#888; font-size:9px; letter-spacing:0.12em; padding:2px 6px; border:1px solid #e5e5e5; margin-left:6px; vertical-align:middle; }
 `;
 
 /* ── Formatters ──────────────────────────────────────────────────── */
@@ -71,11 +73,14 @@ function itemDetailLines(item: OrderItem): string[] {
   if (item.phraseCode)     lines.push(`Frase: ${item.phraseCode}`);
   if (item.designCode)     lines.push(`Diseño: ${item.designCode}${item.designCategory ? ` (${item.designCategory})` : ""}`);
   if (item.itemCode)       lines.push(`Código: ${item.itemCode}`);
+  if (item.printZones?.length) {
+    item.printZones.forEach((z) => lines.push(`${z.label}: ${z.code}${z.isFixed ? " (fijo)" : ""}`));
+  }
   lines.push(`Tallas: ${sizesLabel(item.sizes)}`);
   return lines;
 }
 
-/* ── Build items table rows ──────────────────────────────────────── */
+/* ── Build items table rows (customer email) ─────────────────────── */
 function buildItemRows(items: OrderItem[]): string {
   return items.map(item => `
     <tr>
@@ -88,6 +93,76 @@ function buildItemRows(items: OrderItem[]): string {
       <td style="white-space:nowrap; font-weight:700;">${formatCents(item.subtotal)}</td>
     </tr>
   `).join("");
+}
+
+/* ── Build per-item production block (provider email) ────────────── */
+// For running_fullprint: renders a zone-by-zone breakdown table.
+// For other types: renders a simple details list.
+function buildProviderItemBlock(item: OrderItem): string {
+  const header = `
+    <div style="margin-bottom:28px; border:1px solid #e5e5e5; padding:20px;">
+      <div class="item-name" style="font-size:15px; margin-bottom:12px;">${item.productName}</div>
+      <div class="item-detail">Cantidad: <strong>${item.quantity}</strong></div>
+      <div class="item-detail">Tallas: <strong>${sizesLabel(item.sizes)}</strong></div>
+  `;
+
+  if (item.printZones?.length) {
+    // Running fullprint — zone breakdown
+    const zoneRows = item.printZones.map(z => `
+      <tr>
+        <td style="padding:8px 12px; border-bottom:1px solid #f0f0f0; font-weight:700; font-size:12px; width:40%;">
+          ${z.label}${z.isFixed ? `<span class="badge-fixed">FIJO</span>` : ""}
+        </td>
+        <td style="padding:8px 12px; border-bottom:1px solid #f0f0f0; font-size:12px; color:#555;">
+          ${z.code}
+        </td>
+        <td style="padding:8px 12px; border-bottom:1px solid #f0f0f0; font-size:11px; color:#888;">
+          ver adjunto: ${z.zoneId}_${z.code}.png
+        </td>
+      </tr>
+    `).join("");
+
+    const previewRow = item.finalPreview ? `
+      <tr>
+        <td style="padding:8px 12px; font-weight:700; font-size:12px; color:#FF1E1E;">Preview final</td>
+        <td style="padding:8px 12px; font-size:12px; color:#555;">${item.finalPreview}</td>
+        <td style="padding:8px 12px; font-size:11px; color:#888;">ver adjunto: preview_${item.finalPreview}.png</td>
+      </tr>
+    ` : "";
+
+    return `
+      ${header}
+      <div style="margin-top:16px;">
+        <div class="section-label" style="margin-bottom:8px;">Zonas de impresión</div>
+        <table class="zone-table">
+          <thead>
+            <tr>
+              <th>Zona</th>
+              <th>Código</th>
+              <th>Adjunto</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${zoneRows}
+            ${previewRow}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  // Standard item
+  const extraLines = [
+    item.color         ? `Color: <strong>${item.color}</strong>` : null,
+    item.phraseCode    ? `Frase: <strong>${item.phraseCode}</strong>` : null,
+    item.designCode    ? `Diseño: <strong>${item.designCode}</strong>${item.designCategory ? ` (${item.designCategory})` : ""}` : null,
+    item.itemCode      ? `Código modelo: <strong>${item.itemCode}</strong>` : null,
+  ].filter(Boolean);
+
+  return `
+    ${header}
+    ${extraLines.map(l => `<div class="item-detail">${l}</div>`).join("")}
+    </div>`;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -178,27 +253,26 @@ export async function sendCustomerConfirmationEmail(order: Order): Promise<void>
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   2. PROVIDER PRODUCTION EMAIL  (with image attachments)
+   2. PROVIDER PRODUCTION EMAIL  (with image attachments per zone)
 ══════════════════════════════════════════════════════════════════ */
 export async function sendProviderProductionEmail(
-  order:    Order,
-  provider: Provider,
-  items:    OrderItem[],
+  order:     Order,
+  provider:  Provider,
+  items:     OrderItem[],
   cartItems: CartItem[],
 ): Promise<void> {
-  // Resolve all asset paths for the items being sent to this provider
+  // Resolve all assets for the items going to this provider
   const attachments: Mail.Attachment[] = [];
   const seenPaths = new Set<string>();
 
   for (const cartItem of cartItems) {
-    // Only attach assets for items going to this provider
-    const assetPaths = resolveAssetPaths(cartItem);
-    for (const assetPath of assetPaths) {
-      if (!seenPaths.has(assetPath) && fs.existsSync(assetPath)) {
-        seenPaths.add(assetPath);
+    const resolvedAssets = resolveAssetPaths(cartItem);
+    for (const asset of resolvedAssets) {
+      if (!seenPaths.has(asset.path)) {
+        seenPaths.add(asset.path);
         attachments.push({
-          filename: path.basename(assetPath),
-          path:     assetPath,
+          filename: asset.filename,
+          path:     asset.path,
         });
       }
     }
@@ -237,19 +311,7 @@ export async function sendProviderProductionEmail(
     </p>
 
     <p class="section-label">Artículos a producir</p>
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th>Uds.</th>
-          <th>P/u</th>
-          <th>Subtotal</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${buildItemRows(items)}
-      </tbody>
-    </table>
+    ${items.map(buildProviderItemBlock).join("")}
 
     <hr class="divider"/>
     <p class="section-label">Datos del cliente</p>
@@ -272,7 +334,7 @@ export async function sendProviderProductionEmail(
       Fecha de pedido: ${new Date(order.createdAt).toLocaleDateString("es-ES", { day:"numeric", month:"long", year:"numeric" })}<br/>
       Importe total del pedido: <strong>${formatCents(order.totalAmount)}</strong><br/>
       ${attachments.length > 0
-        ? `Archivos adjuntos: ${attachments.map(a => a.filename).join(", ")}`
+        ? `Archivos adjuntos (${attachments.length}): ${attachments.map(a => a.filename).join(", ")}`
         : "No se encontraron archivos de diseño en el servidor."}
     </p>
   </div>

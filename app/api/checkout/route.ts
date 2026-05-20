@@ -52,8 +52,16 @@ export async function POST(req: NextRequest) {
         const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
         name        = `${name} — ${cap(item.color)}`;
         description = `Frase: ${item.fraseCode} · Diseño: ${item.disenoCode} (${String(item.disenoCategoria).toUpperCase()}) · Tallas: ${sizesStr}`;
+      } else if (item.tipo === "running") {
+        // List the configurable zones (skip fixed ones to keep description short)
+        const zoneStr = item.zones
+          .filter((z) => !z.isFixed)
+          .map((z) => `${z.label}: ${z.code}`)
+          .join(" · ");
+        description = `${zoneStr}${zoneStr ? " · " : ""}Tallas: ${sizesStr}`;
       } else {
-        description = `Modelo: ${item.code} · Tallas: ${sizesStr}`;
+        // yoteempujo
+        description = `Modelo: ${(item as { code: string }).code} · Tallas: ${sizesStr}`;
       }
 
       return {
@@ -137,7 +145,9 @@ export async function POST(req: NextRequest) {
         const detail =
           item.tipo === "personalizada"
             ? `${item.tipo}|${item.color}|${item.fraseCode}|${item.disenoCode}`
-            : `${item.tipo}|${item.code}`;
+            : item.tipo === "running"
+              ? `${item.tipo}|${item.zones.map((z) => z.code).join("+")}`
+              : `${item.tipo}|${item.code}`;
         return `[${i + 1}]${detail}|${sizesStr}`;
       })
       .join("/")

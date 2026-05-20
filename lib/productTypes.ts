@@ -2,6 +2,7 @@
  * Product type utilities:
  * – CartItem → ProductType mapping
  * – Asset path resolution (for email attachments)
+ * – CartItem → OrderItem conversion
  */
 import path from "path";
 import fs   from "fs";
@@ -41,66 +42,128 @@ function existsOrNull(p: string): string | null {
   return fs.existsSync(p) ? p : null;
 }
 
+/* ── Resolved asset ──────────────────────────────────────────────── */
+// A single design file with metadata for email rendering.
+export interface ResolvedAsset {
+  /** Absolute filesystem path to the image file */
+  path: string;
+  /** Human-readable label shown in the provider email (Spanish) */
+  label: string;
+  /** Suggested filename for the email attachment */
+  filename: string;
+}
+
 /* ── Resolve filesystem paths for the design assets ──────────────── */
-export function resolveAssetPaths(item: CartItem): string[] {
-  const paths: string[] = [];
+//
+// Returns a structured list of assets (image path + label + filename)
+// ready to be used as Nodemailer attachments with contextual labels.
+//
+// Running fullprint path convention:
+//   <ASSETS_BASE>/Configurador/Running/<zoneId>/<code>.png
+//   <ASSETS_BASE>/Configurador/Running/preview/<code>.png
+//
+// The caller must check `path` exists before attaching (already done here).
+//
+export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
+  const assets: ResolvedAsset[] = [];
 
+  /* ── personalizada ───────────────────────────────────────────── */
   if (item.tipo === "personalizada") {
-    const cap = (s: string) =>
-      s.charAt(0).toUpperCase() + s.slice(1);
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-    // Phrase image (front)
     const phrasePath = existsOrNull(
       assetPath(
-        "Configurador",
-        "Camiseta personalizada",
-        "01 - Frases",
-        item.color,
-        `${item.fraseCode}.png`
+        "Configurador", "Camiseta personalizada", "01 - Frases",
+        item.color, `${item.fraseCode}.png`
       )
     );
-    if (phrasePath) paths.push(phrasePath);
+    if (phrasePath) {
+      assets.push({
+        path:     phrasePath,
+        label:    "Frase (delante)",
+        filename: `frase_${item.fraseCode}.png`,
+      });
+    }
 
-    // Design image (back)
     const designPath = existsOrNull(
       assetPath(
-        "Configurador",
-        "Camiseta personalizada",
-        "02 - Diseños",
-        cap(item.disenoCategoria),
-        item.color,
-        `${item.disenoCode}.png`
+        "Configurador", "Camiseta personalizada", "02 - Diseños",
+        cap(item.disenoCategoria), item.color, `${item.disenoCode}.png`
       )
     );
-    if (designPath) paths.push(designPath);
+    if (designPath) {
+      assets.push({
+        path:     designPath,
+        label:    "Diseño (detrás)",
+        filename: `diseno_${item.disenoCode}.png`,
+      });
+    }
 
-    // Result composite (front + back previews)
-    const resultBase = assetPath(
-      "Configurador",
-      "Camiseta personalizada",
-      "03 - Resultado"
-    );
+    const resultBase  = assetPath("Configurador", "Camiseta personalizada", "03 - Resultado");
     const frontResult = existsOrNull(path.join(resultBase, `${item.fraseCode}R.png`));
     const backResult  = existsOrNull(path.join(resultBase, `${item.disenoCode}R.png`));
-    if (frontResult) paths.push(frontResult);
-    if (backResult)  paths.push(backResult);
+    if (frontResult) {
+      assets.push({
+        path:     frontResult,
+        label:    "Preview delante",
+        filename: `preview_front_${item.fraseCode}.png`,
+      });
+    }
+    if (backResult) {
+      assets.push({
+        path:     backResult,
+        label:    "Preview detrás",
+        filename: `preview_back_${item.disenoCode}.png`,
+      });
+    }
   }
 
+  /* ── running fullprint (multi-zone) ─────────────────────────── */
   if (item.tipo === "running") {
-    const p = existsOrNull(
-      assetPath("Configurador", "Running", `${item.code}.png`)
-    );
-    if (p) paths.push(p);
+    // Each print zone is stored in its own subfolder: Running/<zoneId>/<code>.png
+    for (const zone of item.zones) {
+      const p = existsOrNull(
+        assetPath("Configurador", "Running", zone.zoneId, `${zone.code}.png`)
+      );
+      if (p) {
+        assets.push({
+          path:     p,
+          label:    zone.label,
+          filename: `${zone.zoneId}_${zone.code}.png`,
+        });
+      }
+    }
+
+    // Composite mockup / final render
+    if (item.finalPreview) {
+      const p = existsOrNull(
+        assetPath("Configurador", "Running", "preview", `${item.finalPreview}.png`)
+      );
+      if (p) {
+        assets.push({
+          path:     p,
+          label:    "Preview final",
+          filename: `preview_${item.finalPreview}.png`,
+        });
+      }
+    }
   }
 
+  /* ── yoteempujo ──────────────────────────────────────────────── */
   if (item.tipo === "yoteempujo") {
     const p = existsOrNull(
       assetPath("Configurador", "yoteempujo", `${item.code}.png`)
     );
-    if (p) paths.push(p);
+    if (p) {
+      assets.push({
+        path:     p,
+        label:    "Diseño",
+        filename: `yoteempujo_${item.code}.png`,
+      });
+    }
   }
 
-  return paths;
+  return assets;
 }
 
 /* ── CartItem → OrderItem ────────────────────────────────────────── */
@@ -114,7 +177,11 @@ export function cartItemToOrderItem(item: CartItem): OrderItem {
   );
   const unitPrice   = PRICES[item.tipo] ?? 2990;
 
-  const base: Omit<OrderItem, "phraseCode" | "designCode" | "designCategory" | "color" | "itemCode"> = {
+  const base: Omit<
+    OrderItem,
+    "phraseCode" | "designCode" | "designCategory" | "color" |
+    "printZones" | "finalPreview" | "itemCode"
+  > = {
     id:          randomUUID(),
     productType,
     productName: PRODUCT_TYPE_NAMES[productType],
@@ -128,13 +195,22 @@ export function cartItemToOrderItem(item: CartItem): OrderItem {
   if (item.tipo === "personalizada") {
     return {
       ...base,
-      color:           item.color,
-      phraseCode:      item.fraseCode,
-      designCode:      item.disenoCode,
-      designCategory:  item.disenoCategoria,
+      color:          item.color,
+      phraseCode:     item.fraseCode,
+      designCode:     item.disenoCode,
+      designCategory: item.disenoCategoria,
     };
   }
 
+  if (item.tipo === "running") {
+    return {
+      ...base,
+      printZones:   item.zones,
+      finalPreview: item.finalPreview,
+    };
+  }
+
+  // yoteempujo
   return {
     ...base,
     itemCode: item.code,
