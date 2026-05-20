@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import Header from "@/components/Header";
 import RunningDestaca from "@/components/RunningDestaca";
 import CatalogGrid from "@/components/CatalogGrid";
@@ -20,19 +19,19 @@ export default function RunningPage() {
 
       <main className="pt-[68px]">
 
-        {/* ── Herramienta de contraste de color ── */}
+        {/* ── Herramienta de contraste interactiva ── */}
         <RunningDestaca />
 
-        {/* ── Catálogo ─────────────────────────── */}
+        {/* ── Catálogo completo ─────────────────── */}
         <div className="max-w-[1200px] mx-auto px-6 py-16">
 
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-start justify-between mb-8 gap-4">
             <div>
               <p className="font-bebas tracking-[0.35em] text-xs text-[#FF1E1E] mb-2">
                 CATÁLOGO
               </p>
               <h2 className="font-bebas tracking-widest text-4xl sm:text-5xl text-black leading-none">
-                CAMISETAS RUNNING
+                TODAS LAS CAMISETAS RUNNING
               </h2>
               <p className="font-bebas tracking-widest text-xs text-gray-400 mt-1.5">
                 {items.length} DISEÑOS · CÓDIGO BASE: BNTRN
@@ -43,7 +42,7 @@ export default function RunningPage() {
               href="https://t.me/Benotpedidosbot"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-bebas tracking-widest text-xs text-[#FF1E1E] hover:underline hidden sm:block"
+              className="flex-shrink-0 font-bebas tracking-widest text-xs text-[#FF1E1E] hover:underline hidden sm:block mt-1"
             >
               @Benotpedidosbot
             </a>
@@ -53,7 +52,7 @@ export default function RunningPage() {
 
           <div className="mt-12 pt-8 border-t border-gray-100 text-center">
             <p className="font-bebas tracking-widest text-gray-400 text-xs mb-4">
-              ¿BUSCAS ALGO MÁS? CONSÚLTANOS POR TELEGRAM
+              ¿BUSCAS ALGO MÁS? CONSÚLTANOS DIRECTAMENTE
             </p>
             <a
               href="https://t.me/Benotpedidosbot"

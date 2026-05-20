@@ -2,90 +2,40 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import {
+  RACE_COLORS,
+  getRecommendations,
+  type RaceColorId,
+  type Recommendation,
+} from "@/lib/runningColorData";
 
 /* ─────────────────────────────────────────────────────────────────
-   Types
+   Organic crowd — deterministic "random" to avoid hydration mismatch
 ───────────────────────────────────────────────────────────────── */
-type RaceColorId =
-  | "roja" | "negra" | "azul" | "blanca"
-  | "amarilla" | "verde" | "naranja" | "otra";
-type BenotColorId = "blanca" | "negra" | "roja";
+function deterministicNoise(seed: number): number {
+  // Simple sin-hash, returns 0–1
+  return Math.abs(Math.sin(seed * 127.1 + 311.7) * 43758.5) % 1;
+}
 
-interface RaceColor   { id: RaceColorId; label: string; hex: string; }
-interface BenotRec    { colorId: BenotColorId; label: string; desc: string; }
+const ROWS = 5;
+const COLS = 11;
+const BENOT_ROW = 2;
+const BENOT_COL = 5; // centre of 11
 
-/* ─────────────────────────────────────────────────────────────────
-   Color data
-───────────────────────────────────────────────────────────────── */
-const RACE_COLORS: RaceColor[] = [
-  { id: "roja",     label: "Roja",     hex: "#DC2626" },
-  { id: "negra",    label: "Negra",    hex: "#111111" },
-  { id: "azul",     label: "Azul",     hex: "#1E40AF" },
-  { id: "blanca",   label: "Blanca",   hex: "#F1F5F9" },
-  { id: "amarilla", label: "Amarilla", hex: "#CA8A04" },
-  { id: "verde",    label: "Verde",    hex: "#15803D" },
-  { id: "naranja",  label: "Naranja",  hex: "#EA580C" },
-  { id: "otra",     label: "Otra",     hex: "#71717A" },
-];
+// Pre-build the full crowd grid config once (module-level, never changes)
+const CROWD_CONFIG = Array.from({ length: ROWS }, (_, row) =>
+  Array.from({ length: COLS }, (_, col) => {
+    const idx = row * COLS + col;
+    const isBenot = row === BENOT_ROW && col === BENOT_COL;
+    return {
+      isBenot,
+      opacity:  isBenot ? 1   : 0.45 + deterministicNoise(idx)       * 0.45,
+      scale:    isBenot ? 1   : 0.78 + deterministicNoise(idx + 100)  * 0.28,
+      yOffset:  isBenot ? 0   : (deterministicNoise(idx + 200) - 0.5) * 6,
+    };
+  })
+);
 
-const BENOT: Record<BenotColorId, {
-  hex: string; stroke: string; previewBg: string; label: string;
-}> = {
-  blanca: { hex: "#FFFFFF", stroke: "#E5E7EB", previewBg: "#111111", label: "BLANCA" },
-  negra:  { hex: "#111111", stroke: "transparent", previewBg: "#F4F4F5", label: "NEGRA" },
-  roja:   { hex: "#FF1E1E", stroke: "transparent", previewBg: "#111111", label: "ROJA" },
-};
-
-/* contrast labels → badge colour map (static strings so Tailwind picks them up) */
-const BADGE: Record<string, string> = {
-  "Máximo contraste": "bg-black text-white",
-  "Muy visible":      "bg-[#FF1E1E] text-white",
-  "Minimal":          "bg-zinc-700 text-white",
-  "Equilibrada":      "bg-zinc-500 text-white",
-};
-
-const CONTRAST_MAP: Record<RaceColorId, BenotRec[]> = {
-  roja: [
-    { colorId: "blanca", label: "Máximo contraste", desc: "Brilla sobre el rojo. Claridad y elegancia absolutas." },
-    { colorId: "negra",  label: "Muy visible",      desc: "Oscuridad que se impone. Actitud frente a la masa." },
-  ],
-  negra: [
-    { colorId: "blanca", label: "Máximo contraste", desc: "La luz entre la oscuridad. Imposible no verte." },
-    { colorId: "roja",   label: "Muy visible",      desc: "Intensidad pura. El rojo revienta sobre el negro." },
-  ],
-  azul: [
-    { colorId: "blanca", label: "Máximo contraste", desc: "Claridad total sobre el azul. Elegante y rotundo." },
-    { colorId: "roja",   label: "Muy visible",      desc: "Calor vs. frío. Un contraste que impacta de lejos." },
-    { colorId: "negra",  label: "Minimal",          desc: "Discreta pero diferente. Identidad sin estridencias." },
-  ],
-  blanca: [
-    { colorId: "negra", label: "Máximo contraste", desc: "Negro contundente sobre el blanco. Sin concesiones." },
-    { colorId: "roja",  label: "Muy visible",      desc: "Rojo intenso. Inconfundible en cualquier pelotón." },
-  ],
-  amarilla: [
-    { colorId: "negra", label: "Máximo contraste", desc: "El negro absorbe todo el protagonismo. Definitivo." },
-    { colorId: "roja",  label: "Muy visible",      desc: "Dos calientes en tensión visual. Energía pura." },
-  ],
-  verde: [
-    { colorId: "blanca", label: "Máximo contraste", desc: "Pureza sobre el verde. Inconfundible desde el km 1." },
-    { colorId: "roja",   label: "Muy visible",      desc: "El rojo siempre destaca sobre el verde. Siempre." },
-    { colorId: "negra",  label: "Minimal",          desc: "Negro sobre verde. Serio, diferente, reconocible." },
-  ],
-  naranja: [
-    { colorId: "negra",  label: "Máximo contraste", desc: "El negro sobre naranja es puro estilo urbano." },
-    { colorId: "blanca", label: "Muy visible",      desc: "Luz sobre fuego. Elegante y diferente a la vez." },
-    { colorId: "roja",   label: "Equilibrada",      desc: "Cálidos complementarios. Fuerza y armonía visual." },
-  ],
-  otra: [
-    { colorId: "negra",  label: "Máximo contraste", desc: "El negro destaca sobre casi cualquier color." },
-    { colorId: "blanca", label: "Muy visible",      desc: "El blanco siempre rompe con el fondo." },
-    { colorId: "roja",   label: "Equilibrada",      desc: "Identidad BENOT. Diferenciación total en carrera." },
-  ],
-};
-
-/* ─────────────────────────────────────────────────────────────────
-   Shirt SVG (same path used site-wide)
-───────────────────────────────────────────────────────────────── */
 const SHIRT_PATH =
   "M35 12 L8 42 L28 50 L23 118 L97 118 L92 50 L112 42 L85 12 Q72 22 60 22 Q48 22 35 12 Z";
 
@@ -106,58 +56,67 @@ function ShirtSVG({
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Crowd grid — 11 × 5 shirts, BENOT highlighted at centre
+   Crowd grid
 ───────────────────────────────────────────────────────────────── */
 function CrowdGrid({
   raceHex,
   benotHex,
   benotStroke,
-  raceStroke,
 }: {
-  raceHex: string;
-  benotHex: string;
+  raceHex:     string;
+  benotHex:    string;
   benotStroke: string;
-  raceStroke: string;
 }) {
-  const ROWS = 5;
-  const COLS = 11;
-  const B_ROW = 2;
-  const B_COL = 5; // centre of 11
+  // Stroke for race-colour shirts (white crowd needs visible edge)
+  const raceStroke =
+    raceHex === "#D0D0D0" || raceHex === "#E8E8E8"
+      ? "#ADADAD"
+      : "rgba(0,0,0,0.10)";
 
   return (
-    <div className="flex flex-col items-center gap-1.5 sm:gap-2.5">
-      {Array.from({ length: ROWS }).map((_, row) => (
-        <div key={row} className="flex gap-1.5 sm:gap-2.5 items-center">
-          {Array.from({ length: COLS }).map((_, col) => {
-            const isBenot = row === B_ROW && col === B_COL;
-            return (
-              <div
-                key={col}
-                className="relative transition-all duration-500"
-                style={{
-                  transform: isBenot ? "scale(1.55)" : "scale(1)",
-                  zIndex: isBenot ? 20 : 0,
-                  filter: isBenot
-                    ? `drop-shadow(0 0 7px ${
-                        benotHex === "#FFFFFF"
-                          ? "rgba(255,255,255,0.95)"
-                          : benotHex + "CC"
-                      })`
-                    : "none",
-                }}
-              >
+    <div className="flex flex-col items-center gap-2 sm:gap-3">
+      {CROWD_CONFIG.map((rowArr, row) => (
+        <div key={row} className="flex gap-2 sm:gap-3 items-center">
+          {rowArr.map((cell, col) => (
+            <div
+              key={col}
+              className="relative transition-all duration-700"
+              style={{
+                opacity:   cell.opacity,
+                transform: `scale(${cell.scale}) translateY(${cell.yOffset}px)`,
+                zIndex:    cell.isBenot ? 20 : 0,
+                filter: cell.isBenot
+                  ? `drop-shadow(0 0 8px ${
+                      benotHex === "#FFFFFF" || benotHex === "#D0D0D0"
+                        ? "rgba(255,255,255,0.9)"
+                        : benotHex + "BF"
+                    })`
+                  : "none",
+              }}
+            >
+              {cell.isBenot ? (
+                // BENOT highlight — slightly larger, full opacity
+                <div
+                  style={{
+                    transform: "scale(1.55)",
+                    opacity: 1,
+                  }}
+                >
+                  <ShirtSVG
+                    fill={benotHex}
+                    stroke={benotStroke}
+                    className="w-5 h-5 sm:w-7 sm:h-7"
+                  />
+                </div>
+              ) : (
                 <ShirtSVG
-                  fill={isBenot ? benotHex : raceHex}
-                  stroke={isBenot ? benotStroke : raceStroke}
-                  className={`transition-all duration-700 ${
-                    isBenot
-                      ? "w-5 h-5 sm:w-7 sm:h-7"
-                      : "w-4 h-4 sm:w-6 sm:h-6 opacity-70"
-                  }`}
+                  fill={raceHex}
+                  stroke={raceStroke}
+                  className="w-4 h-4 sm:w-6 sm:h-6"
                 />
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
       ))}
     </div>
@@ -165,168 +124,169 @@ function CrowdGrid({
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Recommendation card
+   Recommendation card — shows the real shirt photo
 ───────────────────────────────────────────────────────────────── */
 function RecCard({
   rec,
   raceHex,
-  raceStroke,
-  index,
+  isPrimary,
+  animDelay,
 }: {
-  rec: BenotRec;
-  raceHex: string;
-  raceStroke: string;
-  index: number;
+  rec:       Recommendation;
+  raceHex:   string;
+  isPrimary: boolean;
+  animDelay: number;
 }) {
-  const b = BENOT[rec.colorId];
-  const badge = BADGE[rec.label] ?? "bg-black text-white";
-
   return (
-    <div
-      className="flex flex-col border-2 border-gray-100 overflow-hidden group hover:border-black transition-all duration-300 hover:shadow-2xl"
-      style={{ animationDelay: `${index * 80}ms` }}
+    <article
+      className="group flex flex-col bg-white border-2 border-gray-100 overflow-hidden hover:border-black transition-all duration-300 hover:shadow-2xl"
+      style={{ transitionDelay: `${animDelay}ms` }}
     >
-      {/* Shirt preview */}
-      <div
-        className="relative flex items-center justify-center py-12 overflow-hidden"
-        style={{ backgroundColor: b.previewBg }}
-      >
-        <ShirtSVG
-          fill={b.hex}
-          stroke={b.stroke}
-          className="w-28 h-28 sm:w-32 sm:h-32 transition-transform duration-500 group-hover:scale-105"
+      {/* Shirt image */}
+      <div className="relative bg-[#f5f5f3] overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={rec.shirt.src}
+          alt={rec.shirt.name}
+          className="w-full h-auto block transition-transform duration-700 group-hover:scale-[1.04]"
+          loading="lazy"
         />
 
-        {/* Race colour swatch — "what you're avoiding" */}
-        <div className="absolute top-3 left-3 flex items-center gap-2">
-          <div
-            className="w-4 h-4 rounded-full border border-white/20 shadow"
-            style={{ backgroundColor: raceHex }}
-            title="Color carrera"
-          />
-          <span className="font-bebas tracking-widest text-[10px] text-white/40 leading-none">
-            CARRERA
+        {/* Label badge */}
+        <div className="absolute top-3 left-3">
+          <span
+            className={`font-bebas tracking-widest text-[10px] px-2.5 py-1 ${
+              isPrimary ? "bg-black text-white" : "bg-[#FF1E1E] text-white"
+            }`}
+          >
+            {rec.label}
           </span>
         </div>
 
-        {/* Primary border indicator */}
-        {index === 0 && (
+        {/* Race vs Benot swatch */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          <div
+            className="w-4 h-4 rounded-full border border-white/30 shadow"
+            style={{ backgroundColor: raceHex }}
+            title="Color carrera"
+          />
+          <span className="font-bebas text-[9px] text-white/60">VS</span>
+          {/* Shirt preview dot — thumbnail colour taken from category */}
+          <div
+            className="w-4 h-4 rounded-full border border-white/30 shadow overflow-hidden"
+            title="BENOT"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={rec.shirt.src}
+              alt=""
+              className="w-full h-full object-cover object-top scale-[3]"
+              aria-hidden
+            />
+          </div>
+        </div>
+
+        {/* Bottom accent line on primary */}
+        {isPrimary && (
           <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF1E1E]" />
         )}
       </div>
 
       {/* Info */}
-      <div className="flex-1 flex flex-col p-5 bg-white">
-        <span
-          className={`self-start font-bebas tracking-widest text-[10px] px-2.5 py-1 mb-3 ${badge}`}
-        >
-          {rec.label.toUpperCase()}
-        </span>
-
-        <p className="font-bebas tracking-widest text-2xl text-black mb-1">
-          CAMISETA {b.label}
+      <div className="flex flex-col flex-1 p-5">
+        <p className="font-bebas tracking-widest text-[10px] text-gray-400 mb-1">
+          {rec.shirt.code}
         </p>
-        <p className="font-bebas tracking-widest text-xs text-gray-400 leading-relaxed mb-6 flex-1">
-          {rec.desc.toUpperCase()}
+        <p className="font-bebas tracking-widest text-xl text-black mb-1 leading-tight">
+          {rec.shirt.name}
         </p>
-
-        {/* Visual contrast: race vs benot */}
-        <div className="flex items-center gap-2 mb-5">
-          <div
-            className="w-6 h-6 rounded-full border border-gray-200 shadow-sm flex-shrink-0"
-            style={{ backgroundColor: raceHex, borderColor: raceStroke }}
-          />
-          <div className="flex-1 h-px bg-gray-200 relative">
-            <span className="absolute -top-2 left-1/2 -translate-x-1/2 font-bebas text-[10px] text-gray-400">
-              VS
-            </span>
-          </div>
-          <div
-            className="w-6 h-6 rounded-full border shadow-sm flex-shrink-0"
-            style={{
-              backgroundColor: b.hex,
-              borderColor: rec.colorId === "blanca" ? "#e5e7eb" : "transparent",
-            }}
-          />
-        </div>
+        <p className="font-bebas tracking-widest text-xs text-gray-400 mb-6 flex-1">
+          {rec.shirt.slogan.toUpperCase()}
+        </p>
 
         <Link
           href="/configurador"
           className="w-full font-bebas tracking-widest text-sm py-3 flex items-center justify-center gap-2 bg-black text-white hover:bg-[#FF1E1E] transition-colors duration-200"
         >
-          CONFIGURAR ESTA →
+          PEDIR ESTA CAMISETA →
         </Link>
       </div>
-    </div>
+    </article>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Main component
+   Main export
 ───────────────────────────────────────────────────────────────── */
 export default function RunningDestaca() {
-  const [selected, setSelected] = useState<RaceColorId | null>(null);
-  const [visible, setVisible]   = useState(false);
+  const [selected,  setSelected]  = useState<RaceColorId | null>(null);
+  const [visible,   setVisible]   = useState(false);
 
-  const raceCfg    = RACE_COLORS.find((c) => c.id === selected);
-  const recs       = selected ? CONTRAST_MAP[selected] : [];
-  const primaryRec = recs[0];
+  const raceCfg = RACE_COLORS.find((c) => c.id === selected);
+  const recs    = selected ? getRecommendations(selected) : [];
 
-  /* Crowd uses primary recommendation colour — default "blanca" if nothing selected */
-  const benotForCrowd = primaryRec ? BENOT[primaryRec.colorId] : BENOT["blanca"];
-  const raceHex        = raceCfg?.hex ?? "#9CA3AF";
-  const raceStroke     = raceCfg?.hex === "#F1F5F9" ? "#CBD5E1" : "rgba(0,0,0,0.12)";
+  // Primary recommendation drives the crowd's BENOT shirt colour
+  const benotCategory = recs[0]?.shirt.category ?? "cyan";
+  const BENOT_HEX: Record<string, string> = {
+    white:  "#FFFFFF",
+    black:  "#111111",
+    red:    "#FF1E1E",
+    orange: "#F97316",
+    yellow: "#EAB308",
+    green:  "#16A34A",
+    cyan:   "#06B6D4",
+    blue:   "#1D4ED8",
+    purple: "#7C3AED",
+    gray:   "#9CA3AF",
+  };
+  const BENOT_STROKE: Record<string, string> = {
+    white: "#E5E7EB",
+  };
 
-  /* Smooth entrance animation for recommendations */
+  const benotHex    = BENOT_HEX[benotCategory]    ?? "#06B6D4";
+  const benotStroke = BENOT_STROKE[benotCategory] ?? "transparent";
+  const raceHex     = raceCfg?.crowd ?? "#9CA3AF";
+
   useEffect(() => {
     setVisible(false);
     if (!selected) return;
-    const t = setTimeout(() => setVisible(true), 80);
+    const t = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(t);
   }, [selected]);
 
   return (
     <section className="bg-white overflow-hidden">
 
-      {/* ── Hero ──────────────────────────────────────── */}
-      <div className="max-w-[1200px] mx-auto px-6 pt-20 pb-0">
-
-        <p className="font-bebas tracking-[0.35em] text-xs text-[#FF1E1E] mb-5">
+      {/* ── Hero ────────────────────────────────────────────────── */}
+      <div className="max-w-[1200px] mx-auto px-6 pt-16 pb-0">
+        <p className="font-bebas tracking-[0.35em] text-xs text-[#FF1E1E] mb-4">
           ✦ RUNNING
         </p>
-
-        {/* Stat */}
-        <p className="font-bebas tracking-widest text-sm sm:text-base text-gray-400 mb-8 max-w-[520px] leading-relaxed">
+        <p className="font-bebas tracking-widest text-sm text-gray-400 mb-8 max-w-[520px] leading-relaxed">
           EN CARRERAS POPULARES, MÁS DEL 70% DE CORREDORES
           USAN LA CAMISETA OFICIAL DE LA PRUEBA.
         </p>
 
-        {/* Main headline */}
-        <div className="mb-16">
-          <h2 className="font-bebas tracking-widest text-6xl sm:text-8xl lg:text-[9rem] text-black leading-none">
-            DESTACA
+        <div className="mb-14">
+          <h2 className="font-bebas tracking-widest text-5xl sm:text-7xl text-black leading-none">
+            DESTACA ENTRE
           </h2>
-          <h2 className="font-bebas tracking-widest text-6xl sm:text-8xl lg:text-[9rem] text-black leading-none">
-            ENTRE LA
+          <h2 className="font-bebas tracking-widest text-5xl sm:text-7xl text-[#FF1E1E] leading-none">
+            LA MULTITUD.
           </h2>
-          <h2 className="font-bebas tracking-widest text-6xl sm:text-8xl lg:text-[9rem] text-[#FF1E1E] leading-none">
-            MULTITUD.
-          </h2>
-          <p className="font-bebas tracking-widest text-2xl sm:text-4xl text-gray-300 mt-2">
+          <p className="font-bebas tracking-widest text-xl sm:text-3xl text-gray-300 mt-2">
             NO SEAS UNO MÁS.
           </p>
         </div>
       </div>
 
-      {/* ── Crowd visualisation ───────────────────────── */}
-      <div className="bg-zinc-950 py-16 px-6">
+      {/* ── Crowd visualisation ─────────────────────────────────── */}
+      <div className="py-14 px-6" style={{ backgroundColor: "#f3f3f1" }}>
         <div className="max-w-[1200px] mx-auto">
-
           <CrowdGrid
             raceHex={raceHex}
-            benotHex={benotForCrowd.hex}
-            benotStroke={benotForCrowd.stroke}
-            raceStroke={raceStroke}
+            benotHex={benotHex}
+            benotStroke={benotStroke}
           />
 
           {/* Legend */}
@@ -334,21 +294,23 @@ export default function RunningDestaca() {
             <div className="flex items-center gap-2">
               <ShirtSVG
                 fill={raceHex}
-                stroke={raceStroke}
+                stroke={raceHex === "#D0D0D0" ? "#ADADAD" : "rgba(0,0,0,0.1)"}
                 className="w-5 h-5 opacity-60"
               />
-              <span className="font-bebas tracking-widest text-[11px] text-zinc-500">
-                {selected ? `CAMISETA OFICIAL (${raceCfg!.label.toUpperCase()})` : "CAMISETA DE CARRERA"}
+              <span className="font-bebas tracking-widest text-[11px] text-zinc-400">
+                {selected
+                  ? `CAMISETA OFICIAL — ${raceCfg!.label.toUpperCase()}`
+                  : "CAMISETA OFICIAL DE CARRERA"}
               </span>
             </div>
-            <div className="w-px h-4 bg-zinc-700" />
+            <div className="w-px h-4 bg-zinc-300" />
             <div className="flex items-center gap-2">
               <ShirtSVG
-                fill={benotForCrowd.hex}
-                stroke={benotForCrowd.stroke}
+                fill={benotHex}
+                stroke={benotStroke}
                 className="w-5 h-5"
               />
-              <span className="font-bebas tracking-widest text-[11px] text-white">
+              <span className="font-bebas tracking-widest text-[11px] text-zinc-700 font-medium">
                 TÚ CON BENOT
               </span>
             </div>
@@ -356,9 +318,8 @@ export default function RunningDestaca() {
         </div>
       </div>
 
-      {/* ── Color selector ────────────────────────────── */}
-      <div className="max-w-[1200px] mx-auto px-6 pt-16 pb-4">
-
+      {/* ── Color selector ──────────────────────────────────────── */}
+      <div className="max-w-[1200px] mx-auto px-6 pt-14 pb-4">
         <p className="font-bebas tracking-widest text-2xl sm:text-3xl text-black mb-1">
           ¿De qué color es la camiseta de la carrera?
         </p>
@@ -376,9 +337,10 @@ export default function RunningDestaca() {
                 className={`
                   flex items-center gap-2.5 px-4 py-2.5 border-2 font-bebas
                   tracking-widest text-sm transition-all duration-200
-                  ${isActive
-                    ? "border-black bg-black text-white"
-                    : "border-gray-200 text-gray-600 hover:border-gray-400 hover:text-black"
+                  ${
+                    isActive
+                      ? "border-black bg-black text-white"
+                      : "border-gray-200 text-gray-600 hover:border-gray-400 hover:text-black"
                   }
                 `}
               >
@@ -386,7 +348,10 @@ export default function RunningDestaca() {
                   className="w-3.5 h-3.5 rounded-full flex-shrink-0 border"
                   style={{
                     backgroundColor: c.hex,
-                    borderColor: c.id === "blanca" ? "#CBD5E1" : "rgba(0,0,0,0.15)",
+                    borderColor:
+                      c.id === "blanca"
+                        ? "#ADADAD"
+                        : "rgba(0,0,0,0.15)",
                   }}
                 />
                 {c.label.toUpperCase()}
@@ -396,70 +361,64 @@ export default function RunningDestaca() {
         </div>
       </div>
 
-      {/* ── Recommendations ───────────────────────────── */}
+      {/* ── Recommendations ─────────────────────────────────────── */}
       <div
-        className={`
-          max-w-[1200px] mx-auto px-6 pb-20 transition-all duration-500 ease-out
-          ${selected && visible ? "opacity-100 translate-y-0 pt-14" : "opacity-0 translate-y-6 pt-2 pointer-events-none"}
-        `}
+        className={`max-w-[1200px] mx-auto px-6 pb-20 transition-all duration-500 ease-out ${
+          selected && visible
+            ? "opacity-100 translate-y-0 pt-14"
+            : "opacity-0 translate-y-5 pt-4 pointer-events-none"
+        }`}
       >
-        {selected && (
+        {selected ? (
           <>
-            <div className="mb-10 border-t-2 border-gray-100 pt-12">
+            <div className="border-t-2 border-gray-100 pt-12 mb-10">
               <p className="font-bebas tracking-[0.35em] text-xs text-[#FF1E1E] mb-2">
                 BENOT RECOMIENDA
               </p>
               <p className="font-bebas tracking-widest text-3xl sm:text-4xl text-black">
-                ASÍ ES COMO DESTACAS HOY.
+                LAS DOS CAMISETAS QUE MÁS VAN A DESTACAR.
               </p>
             </div>
 
-            <div
-              className={`grid grid-cols-1 gap-4 sm:gap-6 ${
-                recs.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2 max-w-[640px]"
-              }`}
-            >
+            {/* Always exactly 2 cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 max-w-[720px]">
               {recs.map((rec, i) => (
                 <RecCard
-                  key={rec.colorId}
+                  key={rec.shirt.code}
                   rec={rec}
-                  raceHex={raceHex}
-                  raceStroke={raceStroke}
-                  index={i}
+                  raceHex={raceCfg!.hex}
+                  isPrimary={i === 0}
+                  animDelay={i * 80}
                 />
               ))}
             </div>
 
-            {/* CTA strip */}
-            <div className="mt-12 p-8 bg-zinc-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            {/* Bottom CTA strip */}
+            <div className="mt-12 p-8 bg-black flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div>
                 <p className="font-bebas tracking-widest text-2xl text-white mb-1">
                   ¿LISTO PARA DESTACAR?
                 </p>
                 <p className="font-bebas tracking-widest text-xs text-zinc-500">
-                  VE AL CONFIGURADOR Y ELIGE TU CAMISETA RUNNING BENOT
+                  LA MAYORÍA LLEVARÁ LA CAMISETA OFICIAL. TÚ DECIDES.
                 </p>
               </div>
               <Link
                 href="/configurador"
                 className="flex-shrink-0 font-bebas tracking-widest text-sm px-10 py-4 bg-[#FF1E1E] text-white hover:bg-white hover:text-black transition-all duration-200"
               >
-                CONFIGURAR MI CAMISETA →
+                IR AL CONFIGURADOR →
               </Link>
             </div>
           </>
-        )}
-
-        {/* Placeholder before selection */}
-        {!selected && (
-          <div className="pt-10 pb-8 flex items-center justify-center">
-            <p className="font-bebas tracking-widest text-gray-200 text-xl">
+        ) : (
+          <div className="pt-8 pb-4 flex items-center justify-center">
+            <p className="font-bebas tracking-widest text-gray-200 text-lg">
               ↑ SELECCIONA EL COLOR DE LA CARRERA
             </p>
           </div>
         )}
       </div>
-
     </section>
   );
 }
