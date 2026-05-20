@@ -18,6 +18,7 @@ services:
     volumes:
       - ./assets:/app/assets:ro
       - ./assets:/app/public/assets:ro
+      - ./data:/app/data          # persistent order/provider JSON store
     # Healthcheck para que el proxy sepa cuándo está listo
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]

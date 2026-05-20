@@ -23,6 +23,9 @@ public/assets/
 # Large binary assets — upload directly to server via SCP, not tracked in git
 assets/**/*.mp4
 
+# Data store contents — persisted on server via Docker volume, not in git
+data/*.json
+
 # OS files
 .DS_Store
 Thumbs.db
