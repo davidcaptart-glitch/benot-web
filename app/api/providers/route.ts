@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const providers = providersRepo.all();
+  const providers = await providersRepo.all();
   return NextResponse.json({ providers });
 }
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const provider = providersRepo.create({
+  const provider = await providersRepo.create({
     name:                  body.name,
     email:                 body.email,
     supportedProductTypes: body.supportedProductTypes,

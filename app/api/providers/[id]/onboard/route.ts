@@ -34,7 +34,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const provider = providersRepo.findById(id);
+  const provider = await providersRepo.findById(id);
   if (!provider) {
     return NextResponse.json({ error: "Provider not found" }, { status: 404 });
   }
@@ -42,7 +42,6 @@ export async function POST(
   const stripe  = new Stripe(stripeKey);
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://benot.store";
 
-  /* ── Create Connected Account if this provider doesn't have one ── */
   let accountId = provider.stripeAccountId;
   if (!accountId) {
     const created = await stripe.accounts.create({
@@ -55,22 +54,20 @@ export async function POST(
       },
       business_profile: {
         name: provider.name,
-        mcc:  "5699", // Misc. Apparel & Accessory Shops
+        mcc:  "5699",
       },
     });
     accountId = created.id;
 
-    // Persist the Stripe account ID and initial connect status
     const stripeConnectStatus: StripeConnectStatus = {
       payoutsEnabled:   created.payouts_enabled   ?? false,
       chargesEnabled:   created.charges_enabled   ?? false,
       detailsSubmitted: created.details_submitted ?? false,
       lastSyncedAt:     new Date().toISOString(),
     };
-    providersRepo.save({ ...provider, stripeAccountId: accountId, stripeConnectStatus });
+    await providersRepo.save({ ...provider, stripeAccountId: accountId, stripeConnectStatus });
   }
 
-  /* ── Generate Account Link (expires in ~10 min) ──────────────── */
   const accountLink = await stripe.accountLinks.create({
     account:     accountId,
     refresh_url: `${baseUrl}/api/providers/${id}/onboard`,

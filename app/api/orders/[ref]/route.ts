@@ -35,7 +35,7 @@ export async function GET(
   }
 
   const { ref } = await params;
-  const order   = ordersRepo.findByRef(ref.toUpperCase());
+  const order   = await ordersRepo.findByRef(ref.toUpperCase());
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
@@ -51,15 +51,13 @@ export async function PATCH(
   }
 
   const { ref } = await params;
-  const order   = ordersRepo.findByRef(ref.toUpperCase());
+  const order   = await ordersRepo.findByRef(ref.toUpperCase());
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
   const body = await req.json() as {
-    // Option A: update overall order status
     status?: OrderStatus;
-    // Option B: update a specific item's production status
     itemId?:           string;
     productionStatus?: ProductionStatus;
   };
@@ -72,7 +70,7 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    const updated = ordersRepo.updateStatus(order.id, body.status);
+    const updated = await ordersRepo.updateStatus(order.id, body.status);
     return NextResponse.json({ order: updated });
   }
 
@@ -84,7 +82,7 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    const updated = ordersRepo.updateItemProductionStatus(
+    const updated = await ordersRepo.updateItemProductionStatus(
       order.id,
       body.itemId,
       body.productionStatus,

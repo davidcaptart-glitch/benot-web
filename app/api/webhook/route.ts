@@ -1,32 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { randomUUID } from "crypto";
 
 import type { Order, OrderItem, ShippingAddress } from "@/lib/types";
+import { db, orders, orderItems as orderItemsTable, orderEvents, pendingCarts, counters } from "@/db";
 import { ordersRepo, pendingCartsRepo, providersRepo, generateOrderRef } from "@/lib/db";
 import { cartItemToOrderItem } from "@/lib/productTypes";
 import { snapshotOrderAssets, generateProductionSheet } from "@/lib/snapshot";
 import { sendCustomerConfirmationEmail, sendProviderProductionEmail } from "@/lib/email";
+import { eq, sql } from "drizzle-orm";
 
 /* ══════════════════════════════════════════════════════════════════
    POST /api/webhook
 
-   Full order pipeline on payment completion:
+   Full order pipeline on payment completion — ATOMIC TRANSACTION:
      1. Verify Stripe signature
      2. Idempotency guard (skip duplicate events)
-     3. Recover full cart from pendingCartsRepo
-     4. Build OrderItems (with productionStatus = "pending")
-     5. Persist Order
+     3. Recover full cart from pendingCarts
+     4. Build OrderItems (productionStatus = "pending")
+     5. Atomic transaction:
+          a. Generate order ref (counter increment)
+          b. Insert order
+          c. Insert items
+          d. Insert order event
+          e. Delete pending cart
      6. Snapshot all design assets to /data/orders/{orderRef}/
-     7. Update Order with frozenAssets
-     8. Per provider: generate production PDF + send email with attachments
+     7. Patch order with frozenAssets + productionPdfs
+     8. Per provider: generate production PDF + send email
      9. Mark items as "queued", order as "production_sent"
-    10. Clean up pending cart
-    11. Notify Telegram
-
-   Required env:
-     STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-     SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / EMAIL_FROM
-     TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_CHAT_ID   (optional)
+    10. Notify Telegram
 ══════════════════════════════════════════════════════════════════ */
 export async function POST(req: NextRequest) {
   const stripeKey     = process.env.STRIPE_SECRET_KEY;
@@ -57,23 +59,31 @@ export async function POST(req: NextRequest) {
   const session = event.data.object as Stripe.Checkout.Session;
 
   /* ── 2. Idempotency guard ────────────────────────────────────── */
-  if (ordersRepo.findBySessionId(session.id)) {
+  const existing = await ordersRepo.findBySessionId(session.id);
+  if (existing) {
     console.log(`[webhook] Session ${session.id} already processed — skip`);
     return NextResponse.json({ received: true });
   }
 
   try {
     /* ── 3. Recover full cart ────────────────────────────────── */
-    const pendingCart = pendingCartsRepo.findBySessionId(session.id);
+    const pendingCart = await pendingCartsRepo.findBySessionId(session.id);
     const cartItems   = pendingCart?.cart ?? [];
 
-    /* ── 4. Build order items ────────────────────────────────── */
-    const orderItems: OrderItem[] = cartItems.map(cartItemToOrderItem);
+    /* ── 4. Build order items (resolve provider IDs first) ─────── */
+    // Look up which provider handles each product type and pass the map
+    // to cartItemToOrderItem so items get providerId set correctly.
+    const allProviders = await providersRepo.all();
+    const providerIdMap = new Map<import("@/lib/types").ProductType, string | null>();
+    for (const pt of ["premium_custom", "running_fullprint", "solidary_standard"] as const) {
+      const prov = allProviders.find((p) => p.active && p.supportedProductTypes.includes(pt));
+      providerIdMap.set(pt, prov?.id ?? null);
+    }
+    const builtItems: OrderItem[] = cartItems.map((item) => cartItemToOrderItem(item, providerIdMap));
 
     /* ── 5. Amounts + shipping ───────────────────────────────── */
-    const subtotalAmount = orderItems.reduce((s, i) => s + i.subtotal, 0);
+    const subtotalAmount = builtItems.reduce((s, i) => s + i.subtotal, 0);
 
-    // Expand line_items for Telegram; also used to get shipping rate
     const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
       expand: ["line_items"],
     });
@@ -106,51 +116,126 @@ export async function POST(req: NextRequest) {
       } catch { /* non-critical */ }
     }
 
-    /* ── 5b. Persist Order ───────────────────────────────────── */
-    const now = new Date().toISOString();
+    /* ── 6. Atomic transaction ───────────────────────────────── */
+    const orderId  = randomUUID();
+    let   orderRef = "";
+    const now      = new Date();
+
+    await db.transaction(async (tx) => {
+      // a. Generate order ref atomically
+      const year = now.getFullYear();
+      const key  = `orders_${year}`;
+      const [counter] = await tx
+        .insert(counters)
+        .values({ key, value: 1 })
+        .onConflictDoUpdate({
+          target: counters.key,
+          set:    { value: sql`${counters.value} + 1` },
+        })
+        .returning({ value: counters.value });
+      orderRef = `BN-${year}-${String(counter.value).padStart(6, "0")}`;
+
+      // b. Insert order (status = "paid")
+      await tx.insert(orders).values({
+        id:              orderId,
+        orderRef,
+        stripeSessionId: session.id,
+        status:          "paid",
+        customerName:    customer?.name  ?? "",
+        customerEmail:   customer?.email ?? "",
+        customerPhone:   customer?.phone ?? null,
+        shippingAddress: shippingAddress ?? null,
+        shippingOption:  shippingOption  ?? null,
+        subtotalAmount,
+        shippingAmount,
+        totalAmount,
+        currency:        session.currency ?? "eur",
+        frozenAssets:    null,
+        productionPdfs:  null,
+        createdAt:       now,
+        updatedAt:       now,
+      });
+
+      // c. Insert order items
+      if (builtItems.length > 0) {
+        await tx.insert(orderItemsTable).values(
+          builtItems.map((item) => ({
+            id:               item.id,
+            orderId,
+            productType:      item.productType,
+            productName:      item.productName,
+            providerId:       item.providerId ?? null,
+            productionStatus: "pending" as const,
+            color:            item.color ?? null,
+            phraseCode:       item.phraseCode ?? null,
+            designCode:       item.designCode ?? null,
+            designCategory:   item.designCategory ?? null,
+            printZones:       (item.printZones as any) ?? null,
+            finalPreview:     item.finalPreview ?? null,
+            itemCode:         item.itemCode ?? null,
+            sizes:            item.sizes as any,
+            quantity:         item.quantity,
+            unitPrice:        item.unitPrice,
+            subtotal:         item.subtotal,
+            createdAt:        now,
+            updatedAt:        now,
+          }))
+        );
+      }
+
+      // d. Insert order event
+      await tx.insert(orderEvents).values({
+        orderId,
+        event: "order_created",
+        data:  { stripeSessionId: session.id },
+        createdAt: now,
+      });
+
+      // e. Delete pending cart
+      await tx.delete(pendingCarts).where(eq(pendingCarts.sessionId, session.id));
+    });
+
+    console.log(`[webhook] Order ${orderRef} created (atomic)`);
+
+    // Build the domain Order object for subsequent steps
     const order: Order = {
-      id:               crypto.randomUUID(),
-      orderRef:         generateOrderRef(),
-      stripeSessionId:  session.id,
-      status:           "paid",
-      customerName:     customer?.name  ?? "",
-      customerEmail:    customer?.email ?? "",
-      customerPhone:    customer?.phone ?? undefined,
+      id:              orderId,
+      orderRef,
+      stripeSessionId: session.id,
+      status:          "paid",
+      customerName:    customer?.name  ?? "",
+      customerEmail:   customer?.email ?? "",
+      customerPhone:   customer?.phone ?? undefined,
       shippingAddress,
       shippingOption,
-      items:            orderItems,
+      items:           builtItems,
       subtotalAmount,
       shippingAmount,
       totalAmount,
-      currency:         session.currency ?? "eur",
-      createdAt:        now,
-      updatedAt:        now,
+      currency:        session.currency ?? "eur",
+      createdAt:       now.toISOString(),
+      updatedAt:       now.toISOString(),
     };
-    ordersRepo.save(order);
-    console.log(`[webhook] Order ${order.orderRef} created`);
 
-    /* ── 6. Snapshot design assets ───────────────────────────── */
+    /* ── 7. Snapshot design assets (outside transaction, non-critical) */
     let frozenAssets = order.frozenAssets ?? [];
     try {
       frozenAssets = snapshotOrderAssets(order.orderRef, cartItems);
-      ordersRepo.save({ ...order, frozenAssets });
       console.log(`[webhook] Snapshotted ${frozenAssets.length} assets for ${order.orderRef}`);
     } catch (err) {
       console.error(`[webhook] Asset snapshot failed for ${order.orderRef}:`, err);
     }
 
-    /* ── 7. Send customer confirmation ───────────────────────── */
+    /* ── 8. Send customer confirmation ───────────────────────── */
     if (order.customerEmail) {
       sendCustomerConfirmationEmail(order).catch((err) =>
         console.error(`[webhook] Customer email failed (${order.orderRef}):`, err)
       );
     }
 
-    /* ── 8. Route to providers → PDF → email ─────────────────── */
-    // Group order items by provider, keeping track of which cart items belong
+    /* ── 9. Route to providers → PDF → email ─────────────────── */
     const byProvider = new Map<string, { items: OrderItem[]; cartIdx: number[] }>();
-
-    orderItems.forEach((item, idx) => {
+    builtItems.forEach((item, idx) => {
       const pid = item.providerId ?? "__none__";
       if (!byProvider.has(pid)) byProvider.set(pid, { items: [], cartIdx: [] });
       byProvider.get(pid)!.items.push(item);
@@ -161,13 +246,11 @@ export async function POST(req: NextRequest) {
 
     for (const [providerId, { items, cartIdx }] of byProvider) {
       if (providerId === "__none__") continue;
-      const provider = providersRepo.findById(providerId);
+      const provider = allProviders.find((p) => p.id === providerId);
       if (!provider) continue;
 
-      // Filter frozen assets that belong to this provider's items
       const providerAssets = frozenAssets.filter((a) => cartIdx.includes(a.cartItemIndex));
 
-      // Generate production PDF
       let pdfPath: string | undefined;
       try {
         pdfPath = await generateProductionSheet(order, provider, items, providerAssets);
@@ -177,27 +260,30 @@ export async function POST(req: NextRequest) {
         console.error(`[webhook] PDF generation failed (${providerId}):`, err);
       }
 
-      // Send production email (fire-and-forget)
       sendProviderProductionEmail(order, provider, items, providerAssets, pdfPath).catch((err) =>
         console.error(`[webhook] Provider email failed (${providerId}):`, err)
       );
     }
 
-    /* ── 9. Update order with PDF paths + advance statuses ───── */
-    ordersRepo.save({
-      ...order,
-      frozenAssets,
-      productionPdfs,
-      status:    "production_sent",
-      updatedAt: new Date().toISOString(),
-      items: order.items.map((item) => ({
-        ...item,
-        productionStatus: item.providerId ? "queued" : "pending",
-      })),
-    });
+    /* ── 10. Update order: status, frozen assets, PDFs, item statuses */
+    await ordersRepo.patchAssets(orderId, frozenAssets, productionPdfs);
 
-    /* ── 10. Clean up pending cart ───────────────────────────── */
-    pendingCartsRepo.delete(session.id);
+    // Advance order and item statuses
+    await db
+      .update(orders)
+      .set({ status: "production_sent", updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+
+    await db
+      .update(orderItemsTable)
+      .set({ productionStatus: "queued", updatedAt: new Date() })
+      .where(eq(orderItemsTable.orderId, orderId));
+
+    await db.insert(orderEvents).values({
+      orderId,
+      event: "production_sent",
+      data:  { providers: Object.keys(productionPdfs) },
+    });
 
     /* ── 11. Notify Telegram ─────────────────────────────────── */
     notifyTelegram(order, fullSession).catch((err) =>

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs   from "fs";
 import path from "path";
-import { ordersRepo } from "@/lib/db";
-import { DATA_DIR }   from "@/lib/db";
+import { ordersRepo, DATA_DIR } from "@/lib/db";
+import { verifySessionToken }   from "@/lib/auth";
 
 /* ══════════════════════════════════════════════════════════════════
    GET /api/admin/orders/[ref]/file/[filename]
@@ -15,12 +15,13 @@ export async function GET(
 ) {
   const { ref, filename } = await params;
 
-  // Auth check via cookie (middleware already protects /admin routes;
-  // this API is called from admin pages only)
-  const cookie = req.cookies.get("benot_admin")?.value;
-  if (!cookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Auth check via JWT session cookie
+  const token = req.cookies.get("benot_session")?.value;
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await verifySessionToken(token);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const order = ordersRepo.findByRef(ref.toUpperCase());
+  const order = await ordersRepo.findByRef(ref.toUpperCase());
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Only serve files from the order's snapshot directory

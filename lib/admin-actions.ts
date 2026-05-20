@@ -3,6 +3,8 @@
  * BENOT Admin – Server Actions
  * All admin mutations go through here. Each action revalidates the
  * relevant admin paths so the UI reflects changes immediately.
+ *
+ * All repository calls are now async (await required).
  */
 import { revalidatePath } from "next/cache";
 import { redirect }       from "next/navigation";
@@ -12,7 +14,6 @@ import {
   ordersRepo,
   providersRepo,
   productConfigsRepo,
-  generateOrderRef,
 } from "./db";
 import {
   sendCustomerConfirmationEmail,
@@ -39,9 +40,9 @@ function adminBaseUrl() {
 
 /** Update the overall order status. */
 export async function updateOrderStatus(ref: string, status: OrderStatus) {
-  const order = ordersRepo.findByRef(ref);
+  const order = await ordersRepo.findByRef(ref);
   if (!order) throw new Error(`Order ${ref} not found`);
-  ordersRepo.updateStatus(order.id, status);
+  await ordersRepo.updateStatus(order.id, status);
   revalidatePath(`/admin/orders/${ref}`);
   revalidatePath("/admin/orders");
   revalidatePath("/admin");
@@ -53,16 +54,16 @@ export async function updateItemProductionStatus(
   itemId: string,
   status: ProductionStatus,
 ) {
-  const order = ordersRepo.findByRef(ref);
+  const order = await ordersRepo.findByRef(ref);
   if (!order) throw new Error(`Order ${ref} not found`);
-  const updated = ordersRepo.updateItemProductionStatus(order.id, itemId, status);
+
+  const updated = await ordersRepo.updateItemProductionStatus(order.id, itemId, status);
   if (!updated) throw new Error("Item not found");
 
-  // Auto-advance order status
-  const all       = updated.items;
-  const allShipped = all.every((i) => i.productionStatus === "shipped");
+  // Auto-advance order status when all items are shipped
+  const allShipped = updated.items.every((i) => i.productionStatus === "shipped");
   if (allShipped && updated.status !== "shipped") {
-    ordersRepo.updateStatus(updated.id, "shipped");
+    await ordersRepo.updateStatus(updated.id, "shipped");
   }
 
   // Send customer email on key transitions
@@ -79,7 +80,7 @@ export async function updateItemProductionStatus(
 
 /** Re-send the customer confirmation email. */
 export async function resendCustomerEmail(ref: string) {
-  const order = ordersRepo.findByRef(ref);
+  const order = await ordersRepo.findByRef(ref);
   if (!order) throw new Error(`Order ${ref} not found`);
   await sendCustomerConfirmationEmail(order);
   revalidatePath(`/admin/orders/${ref}`);
@@ -87,15 +88,14 @@ export async function resendCustomerEmail(ref: string) {
 
 /** Re-send the production email for a specific provider. */
 export async function resendProviderEmail(ref: string, providerId: string) {
-  const order    = ordersRepo.findByRef(ref);
+  const order    = await ordersRepo.findByRef(ref);
   if (!order) throw new Error(`Order ${ref} not found`);
-  const provider = providersRepo.findById(providerId);
+  const provider = await providersRepo.findById(providerId);
   if (!provider) throw new Error(`Provider ${providerId} not found`);
 
   const providerItems = order.items.filter((i) => i.providerId === providerId);
   if (providerItems.length === 0) throw new Error("No items for this provider");
 
-  // Determine which cart indices belong to this provider
   const providerIndices = order.items
     .map((item, idx) => ({ item, idx }))
     .filter(({ item }) => item.providerId === providerId)
@@ -105,8 +105,6 @@ export async function resendProviderEmail(ref: string, providerId: string) {
     .filter((a) => providerIndices.includes(a.cartItemIndex));
 
   const pdfPath = order.productionPdfs?.[providerId];
-
-  // Regenerate PDF if it doesn't exist
   let finalPdfPath = pdfPath;
   if (!finalPdfPath) {
     try {
@@ -124,11 +122,11 @@ export async function resendProviderEmail(ref: string, providerId: string) {
 
 /** Create or update a provider. */
 export async function saveProvider(data: Omit<Provider, "createdAt">) {
-  const existing = providersRepo.findById(data.id);
+  const existing = await providersRepo.findById(data.id);
   if (existing) {
-    providersRepo.save({ ...existing, ...data });
+    await providersRepo.save({ ...existing, ...data });
   } else {
-    providersRepo.create(data);
+    await providersRepo.create(data);
   }
   revalidatePath("/admin/providers");
   revalidatePath(`/admin/providers/${data.id}`);
@@ -136,9 +134,7 @@ export async function saveProvider(data: Omit<Provider, "createdAt">) {
 
 /** Toggle provider active state. */
 export async function toggleProviderActive(id: string) {
-  const provider = providersRepo.findById(id);
-  if (!provider) throw new Error(`Provider ${id} not found`);
-  providersRepo.save({ ...provider, active: !provider.active });
+  await providersRepo.toggleActive(id);
   revalidatePath("/admin/providers");
   revalidatePath(`/admin/providers/${id}`);
 }
@@ -148,7 +144,7 @@ export async function onboardProvider(id: string) {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) throw new Error("Stripe not configured");
 
-  const provider = providersRepo.findById(id);
+  const provider = await providersRepo.findById(id);
   if (!provider) throw new Error(`Provider ${id} not found`);
 
   const stripe  = new Stripe(stripeKey);
@@ -173,7 +169,7 @@ export async function onboardProvider(id: string) {
       detailsSubmitted: account.details_submitted ?? false,
       lastSyncedAt:     new Date().toISOString(),
     };
-    providersRepo.save({ ...provider, stripeAccountId: accountId, stripeConnectStatus });
+    await providersRepo.save({ ...provider, stripeAccountId: accountId, stripeConnectStatus });
   }
 
   const accountLink = await stripe.accountLinks.create({
@@ -191,11 +187,11 @@ export async function syncProviderStripe(id: string) {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) throw new Error("Stripe not configured");
 
-  const provider = providersRepo.findById(id);
+  const provider = await providersRepo.findById(id);
   if (!provider?.stripeAccountId) throw new Error("Provider has no Stripe account");
 
-  const stripe   = new Stripe(stripeKey);
-  const account  = await stripe.accounts.retrieve(provider.stripeAccountId);
+  const stripe  = new Stripe(stripeKey);
+  const account = await stripe.accounts.retrieve(provider.stripeAccountId);
 
   const stripeConnectStatus: StripeConnectStatus = {
     payoutsEnabled:   account.payouts_enabled   ?? false,
@@ -204,7 +200,7 @@ export async function syncProviderStripe(id: string) {
     lastSyncedAt:     new Date().toISOString(),
   };
 
-  providersRepo.save({ ...provider, stripeConnectStatus });
+  await providersRepo.save({ ...provider, stripeConnectStatus });
   revalidatePath(`/admin/providers/${id}`);
   revalidatePath("/admin/providers");
 }
@@ -215,7 +211,7 @@ export async function syncProviderStripe(id: string) {
 
 /** Save a product configuration (prices, margins, shipping). */
 export async function saveProductConfig(config: ProductConfig) {
-  productConfigsRepo.save(config);
+  await productConfigsRepo.save(config);
   revalidatePath("/admin/products");
   revalidatePath("/admin");
 }

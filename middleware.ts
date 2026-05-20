@@ -1,43 +1,44 @@
 /**
  * BENOT – Edge middleware
- * Protects all /admin/** routes with a cookie-based session check.
- * The cookie value is SHA-256(ADMIN_PASSWORD + ":" + ADMIN_SECRET).
- * Changing either env var instantly invalidates all sessions.
+ *
+ * Protects all /admin/** routes with a JWT session cookie.
+ * Uses jose (Edge-compatible) to verify the token without a DB call.
+ * Token is created at login with HMAC-SHA256 (HS256) signed by JWT_SECRET.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify }                  from "jose";
 
-const COOKIE_NAME = "benot_admin";
+const COOKIE = "benot_session";
+const ALG    = "HS256";
 
-async function expectedToken(): Promise<string> {
-  const password = process.env.ADMIN_PASSWORD ?? "";
-  const secret   = process.env.ADMIN_SECRET   ?? "";
-  const encoder  = new TextEncoder();
-  const data     = encoder.encode(`${password}:${secret}`);
-  const buf      = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+function secret(): Uint8Array {
+  const s = process.env.JWT_SECRET ?? "";
+  return new TextEncoder().encode(s);
 }
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Only protect /admin routes
   if (!pathname.startsWith("/admin")) return NextResponse.next();
+  if (pathname === "/admin/login")    return NextResponse.next();
 
-  // Login page is always accessible
-  if (pathname === "/admin/login") return NextResponse.next();
-
-  const token    = req.cookies.get(COOKIE_NAME)?.value ?? "";
-  const expected = await expectedToken();
-
-  if (!token || token !== expected) {
-    const loginUrl = new URL("/admin/login", req.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+  const token = req.cookies.get(COOKIE)?.value;
+  if (!token) {
+    return redirect(req, pathname);
   }
 
-  return NextResponse.next();
+  try {
+    await jwtVerify(token, secret(), { algorithms: [ALG] });
+    return NextResponse.next();
+  } catch {
+    return redirect(req, pathname);
+  }
+}
+
+function redirect(req: NextRequest, pathname: string) {
+  const url = new URL("/admin/login", req.url);
+  url.searchParams.set("next", pathname);
+  return NextResponse.redirect(url);
 }
 
 export const config = {

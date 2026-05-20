@@ -3,21 +3,6 @@ import Stripe from "stripe";
 import { providersRepo } from "@/lib/db";
 import type { StripeConnectStatus } from "@/lib/types";
 
-/* ══════════════════════════════════════════════════════════════════
-   POST /api/providers/[id]/sync
-
-   Fetches the Stripe Connect Express account state for a provider
-   and persists it to the local store as stripeConnectStatus.
-
-   This powers:
-     • Knowing whether a provider can receive payouts
-     • Blocking auto-routing to providers with incomplete onboarding
-     • Detecting "detailsSubmitted but not yet approved" states
-
-   Returns: { provider } with updated stripeConnectStatus.
-   Auth: requires x-admin-secret header.
-══════════════════════════════════════════════════════════════════ */
-
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.ADMIN_SECRET;
   if (!secret) return false;
@@ -38,7 +23,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const provider = providersRepo.findById(id);
+  const provider = await providersRepo.findById(id);
   if (!provider) {
     return NextResponse.json({ error: "Provider not found" }, { status: 404 });
   }
@@ -57,10 +42,7 @@ export async function POST(
     account = await stripe.accounts.retrieve(provider.stripeAccountId);
   } catch (err) {
     console.error(`[provider/sync] Stripe API error for ${provider.stripeAccountId}:`, err);
-    return NextResponse.json(
-      { error: "Failed to retrieve Stripe account" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Failed to retrieve Stripe account" }, { status: 502 });
   }
 
   const stripeConnectStatus: StripeConnectStatus = {
@@ -70,7 +52,7 @@ export async function POST(
     lastSyncedAt:     new Date().toISOString(),
   };
 
-  const updated = providersRepo.save({ ...provider, stripeConnectStatus });
+  const updated = await providersRepo.save({ ...provider, stripeConnectStatus });
 
   return NextResponse.json({
     provider: updated,

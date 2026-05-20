@@ -14,9 +14,6 @@ import type { ProductionStatus, OrderStatus } from "@/lib/types";
      ref      – BN-2026-000124
      itemId   – OrderItem UUID
      action   – "printing_started" | "production_complete" | "shipped"
-
-   On success: returns a simple HTML confirmation page.
-   On invalid token: returns 403 HTML error page.
 ══════════════════════════════════════════════════════════════════ */
 
 type ProviderAction = "printing_started" | "production_complete" | "shipped";
@@ -49,7 +46,7 @@ export async function GET(req: NextRequest) {
     return htmlPage("❌ Token inválido", "Este enlace no es válido o ha caducado.", false);
   }
 
-  const order = ordersRepo.findByRef(ref.toUpperCase());
+  const order = await ordersRepo.findByRef(ref.toUpperCase());
   if (!order) {
     return htmlPage("❌ Pedido no encontrado", `No existe el pedido ${ref}.`, false);
   }
@@ -59,27 +56,26 @@ export async function GET(req: NextRequest) {
     return htmlPage("❌ Artículo no encontrado", "El artículo no pertenece a este pedido.", false);
   }
 
-  // Update per-item production status
   const productionStatus = ACTION_TO_PRODUCTION_STATUS[action];
-  const updatedOrder = ordersRepo.updateItemProductionStatus(order.id, itemId, productionStatus);
+  const updatedOrder = await ordersRepo.updateItemProductionStatus(order.id, itemId, productionStatus);
 
   if (!updatedOrder) {
     return htmlPage("❌ Error", "No se pudo actualizar el estado.", false);
   }
 
   // Determine aggregate order status
-  const allItems         = updatedOrder.items;
-  const allCompleted     = allItems.every((i) => i.productionStatus === "completed" || i.productionStatus === "shipped");
-  const allShipped       = allItems.every((i) => i.productionStatus === "shipped");
-  const anyInProduction  = allItems.some((i) => i.productionStatus === "printing");
+  const allItems        = updatedOrder.items;
+  const allCompleted    = allItems.every((i) => i.productionStatus === "completed" || i.productionStatus === "shipped");
+  const allShipped      = allItems.every((i) => i.productionStatus === "shipped");
+  const anyInProduction = allItems.some((i) => i.productionStatus === "printing");
 
   let newOrderStatus: OrderStatus | null = null;
-  if (allShipped)      newOrderStatus = "shipped";
-  else if (allCompleted) newOrderStatus = "in_production";
+  if (allShipped)           newOrderStatus = "shipped";
+  else if (allCompleted)    newOrderStatus = "in_production";
   else if (anyInProduction) newOrderStatus = "in_production";
 
   if (newOrderStatus && newOrderStatus !== updatedOrder.status) {
-    ordersRepo.updateStatus(updatedOrder.id, newOrderStatus);
+    await ordersRepo.updateStatus(updatedOrder.id, newOrderStatus);
   }
 
   // Send customer status email (fire-and-forget)

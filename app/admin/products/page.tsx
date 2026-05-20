@@ -13,8 +13,8 @@ function fmt(cents: number) {
   return (cents / 100).toFixed(2);
 }
 
-export default function ProductsPage() {
-  const configs = productConfigsRepo.all();
+export default async function ProductsPage() {
+  const configs = await productConfigsRepo.all();
 
   return (
     <div className="p-8">

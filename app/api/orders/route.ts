@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const statusFilter = searchParams.get("status");
   const limit        = Math.min(Number(searchParams.get("limit") ?? 100), 500);
 
-  let orders = ordersRepo.all();
+  let orders = await ordersRepo.all();
   if (statusFilter) {
     orders = orders.filter((o) => o.status === statusFilter);
   }
@@ -31,6 +31,6 @@ export async function GET(req: NextRequest) {
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret) return false; // no secret configured → deny all
+  if (!secret) return false;
   return req.headers.get("x-admin-secret") === secret;
 }

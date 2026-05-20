@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
 
     /* ── Persist full cart keyed by Stripe session ID ────────────── */
     // This is the authoritative cart data used by the webhook.
-    pendingCartsRepo.save({
+    await pendingCartsRepo.save({
       sessionId: session.id,
       cart,
       createdAt: new Date().toISOString(),

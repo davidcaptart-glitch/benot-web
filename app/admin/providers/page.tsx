@@ -2,8 +2,8 @@ export const dynamic = "force-dynamic";
 import { providersRepo } from "@/lib/db";
 import Link from "next/link";
 
-export default function ProvidersPage() {
-  const providers = providersRepo.all();
+export default async function ProvidersPage() {
+  const providers = await providersRepo.all();
 
   return (
     <div className="p-8">
@@ -15,7 +15,7 @@ export default function ProvidersPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {providers.map((p) => {
-          const sc = p.stripeConnectStatus;
+          const sc    = p.stripeConnectStatus;
           const ready = sc?.payoutsEnabled && sc?.chargesEnabled;
           return (
             <Link

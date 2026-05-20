@@ -19,11 +19,13 @@ export default async function ProviderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const provider = providersRepo.findById(id);
+  const [provider, allOrders] = await Promise.all([
+    providersRepo.findById(id),
+    ordersRepo.all(),
+  ]);
   if (!provider) notFound();
 
-  const sc           = provider.stripeConnectStatus;
-  const allOrders    = ordersRepo.all();
+  const sc             = provider.stripeConnectStatus;
   const providerOrders = allOrders
     .filter((o) => o.items.some((i) => i.providerId === id))
     .slice(0, 5);
@@ -111,9 +113,9 @@ export default async function ProviderDetailPage({
                 {provider.stripeAccountId}
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <ConnectBadge label="Pagos"    ok={sc?.chargesEnabled}   />
-                <ConnectBadge label="Payouts"  ok={sc?.payoutsEnabled}   />
-                <ConnectBadge label="Datos"    ok={sc?.detailsSubmitted} />
+                <ConnectBadge label="Pagos"   ok={sc?.chargesEnabled}   />
+                <ConnectBadge label="Payouts" ok={sc?.payoutsEnabled}   />
+                <ConnectBadge label="Datos"   ok={sc?.detailsSubmitted} />
               </div>
               {sc?.lastSyncedAt && (
                 <p className="text-[10px] text-gray-400">

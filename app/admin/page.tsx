@@ -25,20 +25,22 @@ function statusBadge(status: Order["status"]) {
 }
 
 /* ── Page ────────────────────────────────────────────────────────── */
-export default function AdminDashboard() {
-  const allOrders    = ordersRepo.all();
-  const allProviders = providersRepo.all();
-  const allPayouts   = payoutsRepo.all();
-  const configs      = productConfigsRepo.all();
+export default async function AdminDashboard() {
+  const [allOrders, allProviders, allPayouts, configs] = await Promise.all([
+    ordersRepo.all(),
+    providersRepo.all(),
+    payoutsRepo.all(),
+    productConfigsRepo.all(),
+  ]);
 
   const todayOrders  = allOrders.filter((o) => new Date(o.createdAt).toDateString() === todayStr());
   const todayRevenue = todayOrders
     .filter((o) => o.status !== "pending")
     .reduce((s, o) => s + o.totalAmount, 0);
 
-  const pending       = allOrders.filter((o) => ["paid", "production_sent", "in_production"].includes(o.status));
-  const shipped       = allOrders.filter((o) => o.status === "shipped");
-  const delivered     = allOrders.filter((o) => o.status === "delivered");
+  const pending         = allOrders.filter((o) => ["paid", "production_sent", "in_production"].includes(o.status));
+  const shipped         = allOrders.filter((o) => o.status === "shipped");
+  const delivered       = allOrders.filter((o) => o.status === "delivered");
   const activeProviders = allProviders.filter((p) => p.active);
   const pendingPayouts  = allPayouts.filter((p) => p.status === "pending");
 

@@ -9,7 +9,6 @@ import fs   from "fs";
 
 import type { CartItem, ProductType, OrderItem, SizeMap } from "./types";
 import { PRODUCT_TYPE_NAMES } from "./types";
-import { providersRepo } from "./db";
 import { randomUUID } from "crypto";
 
 /* ── Prices (cents) ──────────────────────────────────────────────── */
@@ -175,15 +174,20 @@ export function resolveAssetPaths(item: CartItem): ResolvedAsset[] {
 }
 
 /* ── CartItem → OrderItem ────────────────────────────────────────── */
-export function cartItemToOrderItem(item: CartItem): OrderItem {
+// Provider assignment is done asynchronously in the webhook after all items
+// are built — pass providerIdMap if known, otherwise providerId is null.
+export function cartItemToOrderItem(
+  item: CartItem,
+  providerIdMap?: Map<ProductType, string | null>
+): OrderItem {
   const productType = cartTipoToProductType(item.tipo);
-  const provider    = providersRepo.findByProductType(productType);
   const sizes       = (item.sizes ?? {}) as SizeMap;
   const quantity    = Math.max(
     1,
     Object.values(sizes).reduce((a, b) => a + b, 0)
   );
-  const unitPrice = PRICES[item.tipo] ?? 2990;
+  const unitPrice  = PRICES[item.tipo] ?? 2990;
+  const providerId = providerIdMap?.get(productType) ?? null;
 
   const base: Omit<
     OrderItem,
@@ -193,7 +197,7 @@ export function cartItemToOrderItem(item: CartItem): OrderItem {
     id:               randomUUID(),
     productType,
     productName:      PRODUCT_TYPE_NAMES[productType],
-    providerId:       provider?.id ?? null,
+    providerId,
     productionStatus: "pending",
     sizes,
     quantity,

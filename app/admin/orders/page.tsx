@@ -2,8 +2,8 @@ export const dynamic = "force-dynamic";
 import { ordersRepo } from "@/lib/db";
 import OrdersTable from "./OrdersTable";
 
-export default function OrdersPage() {
-  const orders = ordersRepo.all();
+export default async function OrdersPage() {
+  const orders = await ordersRepo.all();
   return (
     <div className="p-8">
       <div className="mb-6 flex items-end justify-between">

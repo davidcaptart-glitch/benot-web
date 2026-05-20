@@ -39,14 +39,15 @@ export default async function OrderDetailPage({
   params: Promise<{ ref: string }>;
 }) {
   const { ref } = await params;
-  const order   = ordersRepo.findByRef(ref.toUpperCase());
+  const [order, providers] = await Promise.all([
+    ordersRepo.findByRef(ref.toUpperCase()),
+    providersRepo.all(),
+  ]);
   if (!order) notFound();
 
-  const providers   = providersRepo.all();
   const addr        = order.shippingAddress;
   const frozenAssets = order.frozenAssets ?? [];
 
-  // Group items by provider
   const providerMap = new Map(providers.map((p) => [p.id, p]));
 
   return (
@@ -75,8 +76,8 @@ export default async function OrderDetailPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         {/* Customer */}
         <Card title="CLIENTE">
-          <Row label="Nombre"  value={order.customerName || "—"} />
-          <Row label="Email"   value={order.customerEmail} />
+          <Row label="Nombre"   value={order.customerName || "—"} />
+          <Row label="Email"    value={order.customerEmail} />
           <Row label="Teléfono" value={order.customerPhone ?? "—"} />
         </Card>
 
@@ -95,10 +96,10 @@ export default async function OrderDetailPage({
 
         {/* Amounts */}
         <Card title="IMPORTES">
-          <Row label="Subtotal"  value={fmt(order.subtotalAmount)} />
-          <Row label="Envío"     value={order.shippingAmount === 0 ? "GRATIS" : fmt(order.shippingAmount)} />
-          <Row label="TOTAL"     value={fmt(order.totalAmount)} bold />
-          <Row label="Moneda"    value={order.currency.toUpperCase()} />
+          <Row label="Subtotal" value={fmt(order.subtotalAmount)} />
+          <Row label="Envío"    value={order.shippingAmount === 0 ? "GRATIS" : fmt(order.shippingAmount)} />
+          <Row label="TOTAL"    value={fmt(order.totalAmount)} bold />
+          <Row label="Moneda"   value={order.currency.toUpperCase()} />
         </Card>
       </div>
 

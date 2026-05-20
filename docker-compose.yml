@@ -1,4 +1,26 @@
 services:
+
+  # ── PostgreSQL database ──────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: benot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       benot
+      POSTGRES_USER:     benot
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - benot-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"        # expose for local tooling; remove in production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benot -d benot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Next.js web app ──────────────────────────────────────────────
   web:
     build:
       context: .
@@ -8,21 +30,30 @@ services:
     image: benot-web:latest
     container_name: benot-web
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "3000:3000"
     # Carga el fichero .env del servidor (NO lo subas al repo)
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://benot:${DB_PASSWORD:-changeme}@db:5432/benot
     # Volúmenes de assets: permite añadir/cambiar imágenes sin reconstruir la imagen Docker.
     # Sube archivos a /opt/benot-web/assets/ → reinicia el contenedor → aparecen en la web.
     volumes:
       - ./assets:/app/assets:ro
       - ./assets:/app/public/assets:ro
-      - ./data:/app/data          # persistent order/provider JSON store
+      - ./data:/app/data          # frozen assets + PDFs (NOT the DB anymore)
     # Healthcheck para que el proxy sepa cuándo está listo
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
+
+volumes:
+  benot-db-data:
+    driver: local

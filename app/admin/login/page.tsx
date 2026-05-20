@@ -4,10 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 function LoginForm() {
-  const router      = useRouter();
-  const params      = useSearchParams();
-  const [pw, setPw]     = useState("");
-  const [err, setErr]   = useState("");
+  const router  = useRouter();
+  const params  = useSearchParams();
+  const [email, setEmail]     = useState("");
+  const [pw, setPw]           = useState("");
+  const [err, setErr]         = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -17,7 +18,7 @@ function LoginForm() {
     const res = await fetch("/api/admin/login", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ password: pw }),
+      body:    JSON.stringify({ email, password: pw }),
     });
     if (res.ok) {
       router.push(params.get("next") ?? "/admin");
@@ -31,12 +32,23 @@ function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
+        <label className="block text-xs tracking-widest text-gray-500 mb-2">EMAIL</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoFocus
+          required
+          className="w-full border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:border-black"
+          placeholder="admin@benot.store"
+        />
+      </div>
+      <div>
         <label className="block text-xs tracking-widest text-gray-500 mb-2">CONTRASEÑA</label>
         <input
           type="password"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
-          autoFocus
           required
           className="w-full border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:border-black"
           placeholder="••••••••"
