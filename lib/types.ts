@@ -198,3 +198,21 @@ export interface PendingCart {
   cart:      CartItem[];
   createdAt: string;
 }
+
+// ── Product configuration (admin-editable) ────────────────────────
+// Replaces hardcoded prices and shipping values.
+// Managed via /admin/products — persisted in product_configs.json.
+export interface ProductConfig {
+  productType:              ProductType;
+  basePrice:                number;   // cents — what customer pays
+  providerCost:             number;   // cents — cost BENOT pays provider
+  shippingCost:             number;   // cents — standard shipping
+  urgentShippingCost:       number;   // cents — urgent shipping
+  freeShippingThreshold:    number;   // cents — cart total for free shipping
+  discountActive:           boolean;
+  discountPercent:          number;   // 0–100
+  active:                   boolean;
+  estimatedProductionDays:  number;
+  estimatedShippingDays:    number;
+  updatedAt:                string;
+}

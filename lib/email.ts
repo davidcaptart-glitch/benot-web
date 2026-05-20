@@ -12,6 +12,7 @@ import type Mail  from "nodemailer/lib/mailer";
 
 import type { FrozenAsset, Order, OrderItem, Provider } from "./types";
 import { sizesLabel } from "./productTypes";
+import { createProviderToken } from "./tokens";
 
 /* ── Transporter ─────────────────────────────────────────────────── */
 function createTransporter() {
@@ -94,6 +95,119 @@ function buildItemRows(items: OrderItem[]): string {
   `).join("");
 }
 
+/* ── Build provider action buttons (magic links) ─────────────────── */
+function buildActionButtons(item: OrderItem): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://benot.store";
+  const ref     = ""; // injected at call site via closure — see buildProviderItemBlockWithRef
+
+  // Buttons are built by buildProviderItemBlockWithRef which has access to orderRef
+  void item; void baseUrl; void ref;
+  return ""; // placeholder — real implementation in buildProviderItemBlockWithRef
+}
+
+function buildProviderItemBlockWithRef(item: OrderItem, orderRef: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://benot.store";
+
+  function actionUrl(action: string) {
+    const token = createProviderToken(orderRef, item.id, action);
+    return `${baseUrl}/api/provider-action?token=${token}&ref=${encodeURIComponent(orderRef)}&itemId=${item.id}&action=${action}`;
+  }
+
+  const actionBtns = `
+    <div style="margin-top:16px; padding-top:14px; border-top:1px solid #e5e5e5;">
+      <div class="section-label" style="margin-bottom:10px;">Acciones de producción</div>
+      <table style="border-collapse:collapse;">
+        <tr>
+          <td style="padding-right:8px;">
+            <a href="${actionUrl("printing_started")}" style="display:inline-block; background:#7C3AED; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.12em; padding:8px 16px; text-decoration:none;">
+              🖨 IMPRESIÓN INICIADA
+            </a>
+          </td>
+          <td style="padding-right:8px;">
+            <a href="${actionUrl("production_complete")}" style="display:inline-block; background:#16A34A; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.12em; padding:8px 16px; text-decoration:none;">
+              ✓ PRODUCCIÓN COMPLETA
+            </a>
+          </td>
+          <td>
+            <a href="${actionUrl("shipped")}" style="display:inline-block; background:#F97316; color:#fff; font-size:11px; font-weight:700; letter-spacing:0.12em; padding:8px 16px; text-decoration:none;">
+              🚚 ENVIADO AL CLIENTE
+            </a>
+          </td>
+        </tr>
+      </table>
+      <div style="color:#aaa; font-size:10px; margin-top:8px;">
+        Estos botones actualizan el estado del pedido automáticamente.
+      </div>
+    </div>
+  `;
+
+  const header = `
+    <div style="margin-bottom:28px; border:1px solid #e5e5e5; padding:20px;">
+      <div class="item-name" style="font-size:15px; margin-bottom:12px;">${item.productName}</div>
+      <div class="item-detail">Cantidad: <strong>${item.quantity}</strong></div>
+      <div class="item-detail">Tallas: <strong>${sizesLabel(item.sizes)}</strong></div>
+  `;
+
+  if (item.printZones?.length) {
+    const zoneRows = item.printZones.map(z => `
+      <tr>
+        <td style="padding:8px 12px; border-bottom:1px solid #f0f0f0; font-weight:700; font-size:12px; width:40%;">
+          ${z.label}${z.isFixed ? `<span class="badge-fixed">FIJO</span>` : ""}
+        </td>
+        <td style="padding:8px 12px; border-bottom:1px solid #f0f0f0; font-size:12px; color:#555;">
+          ${z.code}
+        </td>
+        <td style="padding:8px 12px; border-bottom:1px solid #f0f0f0; font-size:11px; color:#888;">
+          ver adjunto: ${z.zoneId}_${z.code}.png
+        </td>
+      </tr>
+    `).join("");
+
+    const previewRow = item.finalPreview ? `
+      <tr>
+        <td style="padding:8px 12px; font-weight:700; font-size:12px; color:#FF1E1E;">Preview final</td>
+        <td style="padding:8px 12px; font-size:12px; color:#555;">${item.finalPreview}</td>
+        <td style="padding:8px 12px; font-size:11px; color:#888;">ver adjunto: preview_${item.finalPreview}.png</td>
+      </tr>
+    ` : "";
+
+    return `
+      ${header}
+      <div style="margin-top:16px;">
+        <div class="section-label" style="margin-bottom:8px;">Zonas de impresión</div>
+        <table class="zone-table">
+          <thead>
+            <tr>
+              <th>Zona</th>
+              <th>Código</th>
+              <th>Adjunto</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${zoneRows}
+            ${previewRow}
+          </tbody>
+        </table>
+      </div>
+      ${actionBtns}
+    </div>`;
+  }
+
+  // Standard item
+  const extraLines = [
+    item.color         ? `Color: <strong>${item.color}</strong>` : null,
+    item.phraseCode    ? `Frase: <strong>${item.phraseCode}</strong>` : null,
+    item.designCode    ? `Diseño: <strong>${item.designCode}</strong>${item.designCategory ? ` (${item.designCategory})` : ""}` : null,
+    item.itemCode      ? `Código modelo: <strong>${item.itemCode}</strong>` : null,
+  ].filter(Boolean);
+
+  return `
+    ${header}
+    ${extraLines.map(l => `<div class="item-detail">${l}</div>`).join("")}
+    ${actionBtns}
+    </div>`;
+}
+
 /* ── Build per-item production block (provider email) ────────────── */
 // For running_fullprint: renders a zone-by-zone breakdown table.
 // For other types: renders a simple details list.
@@ -161,6 +275,7 @@ function buildProviderItemBlock(item: OrderItem): string {
   return `
     ${header}
     ${extraLines.map(l => `<div class="item-detail">${l}</div>`).join("")}
+    ${buildActionButtons(item)}
     </div>`;
 }
 
@@ -316,7 +431,7 @@ export async function sendProviderProductionEmail(
     </p>
 
     <p class="section-label">Artículos a producir</p>
-    ${items.map(buildProviderItemBlock).join("")}
+    ${items.map((item) => buildProviderItemBlockWithRef(item, order.orderRef)).join("")}
 
     <hr class="divider"/>
     <p class="section-label">Datos del cliente</p>
@@ -354,5 +469,92 @@ export async function sendProviderProductionEmail(
     subject:     `[PRODUCCIÓN] ${order.orderRef} – ${items.length} artículo${items.length !== 1 ? "s" : ""}`,
     html,
     attachments,
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   3. CUSTOMER STATUS UPDATE EMAILS
+   Sent automatically when the order status changes (via provider
+   magic link or admin panel).
+══════════════════════════════════════════════════════════════════ */
+export async function sendCustomerStatusEmail(
+  order:  Order,
+  status: "in_production" | "shipped" | "delivered",
+  tracking?: { carrier?: string; trackingNumber?: string; trackingUrl?: string },
+): Promise<void> {
+  const cfg: Record<string, { subject: string; headline: string; sub: string; icon: string }> = {
+    in_production: {
+      subject:  `Tu pedido ${order.orderRef} está en producción`,
+      headline: "Tu pedido está en producción.",
+      sub:      "Ya hemos empezado a fabricar tu camiseta. Te avisaremos en cuanto esté de camino.",
+      icon:     "🖨",
+    },
+    shipped: {
+      subject:  `Tu pedido ${order.orderRef} está de camino`,
+      headline: "Tu pedido está de camino.",
+      sub:      "Hemos enviado tu pedido. En breve llegará a tu dirección.",
+      icon:     "🚚",
+    },
+    delivered: {
+      subject:  `Tu pedido ${order.orderRef} ha sido entregado`,
+      headline: "Tu pedido ha llegado.",
+      sub:      "Esperamos que te encante. Si tienes cualquier duda, contáctanos por Telegram.",
+      icon:     "✓",
+    },
+  };
+
+  const c = cfg[status];
+  if (!c) return;
+
+  const trackingBlock = tracking?.trackingUrl
+    ? `<div style="text-align:center; margin:24px 0;">
+         <a href="${tracking.trackingUrl}"
+            style="display:inline-block; background:#FF1E1E; color:#fff; font-weight:700; font-size:12px; letter-spacing:0.15em; padding:12px 32px; text-decoration:none;">
+           SEGUIR MI PEDIDO →
+         </a>
+         ${tracking.trackingNumber ? `<p style="color:#888; font-size:11px; margin-top:8px;">Nº seguimiento: ${tracking.trackingNumber}${tracking.carrier ? ` · ${tracking.carrier}` : ""}</p>` : ""}
+       </div>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${c.subject}</title>
+<style>${CSS}</style></head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <p class="header-title">BENOT</p>
+    <p class="header-sub">ACTUALIZACIÓN DE PEDIDO</p>
+  </div>
+  <div class="body">
+    <p class="section-label">Referencia</p>
+    <div class="ref-box">${order.orderRef}</div>
+
+    <p style="font-size:36px; text-align:center; margin:0 0 8px;">${c.icon}</p>
+    <p class="section-title" style="text-align:center;">${c.headline}</p>
+    <p style="color:#555; font-size:14px; margin-bottom:32px; line-height:1.6; text-align:center;">
+      Hola, ${order.customerName.split(" ")[0]}. ${c.sub}
+    </p>
+
+    ${trackingBlock}
+
+    <hr class="divider"/>
+    <p style="color:#888; font-size:12px; line-height:1.6; text-align:center;">
+      ¿Tienes alguna pregunta? Contáctanos en
+      <a href="https://t.me/Benotpedidosbot" style="color:#FF1E1E;">@Benotpedidosbot</a>
+      con tu referencia <strong>${order.orderRef}</strong>.
+    </p>
+  </div>
+  <div class="footer">© 2026 BENOT · TODOS LOS DERECHOS RESERVADOS</div>
+</div>
+</body></html>`;
+
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from:    FROM,
+    to:      order.customerEmail,
+    subject: c.subject,
+    html,
   });
 }

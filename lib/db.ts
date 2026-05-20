@@ -16,6 +16,7 @@ import type {
   PendingCart,
   ProductType,
   ProductionStatus,
+  ProductConfig,
 } from "./types";
 
 /* ── Data directory (mounted as Docker volume /app/data) ─────────── */
@@ -258,5 +259,79 @@ export const payoutsRepo = {
       createdAt: new Date().toISOString(),
     };
     return this.save(payout);
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   PRODUCT CONFIGS  (admin-editable prices, shipping, margins)
+══════════════════════════════════════════════════════════════════ */
+const PRODUCT_CONFIGS_FILE = "product_configs.json";
+
+const now = new Date().toISOString();
+const DEFAULT_PRODUCT_CONFIGS: ProductConfig[] = [
+  {
+    productType:             "premium_custom",
+    basePrice:               4290,
+    providerCost:            2500,
+    shippingCost:            499,
+    urgentShippingCost:      999,
+    freeShippingThreshold:   8000,
+    discountActive:          false,
+    discountPercent:         0,
+    active:                  true,
+    estimatedProductionDays: 3,
+    estimatedShippingDays:   5,
+    updatedAt:               now,
+  },
+  {
+    productType:             "running_fullprint",
+    basePrice:               3790,
+    providerCost:            2200,
+    shippingCost:            499,
+    urgentShippingCost:      999,
+    freeShippingThreshold:   8000,
+    discountActive:          false,
+    discountPercent:         0,
+    active:                  true,
+    estimatedProductionDays: 4,
+    estimatedShippingDays:   5,
+    updatedAt:               now,
+  },
+  {
+    productType:             "solidary_standard",
+    basePrice:               2790,
+    providerCost:            1800,
+    shippingCost:            499,
+    urgentShippingCost:      999,
+    freeShippingThreshold:   8000,
+    discountActive:          false,
+    discountPercent:         0,
+    active:                  true,
+    estimatedProductionDays: 2,
+    estimatedShippingDays:   5,
+    updatedAt:               now,
+  },
+];
+
+export const productConfigsRepo = {
+  all(): ProductConfig[] {
+    return readJson<ProductConfig[]>(PRODUCT_CONFIGS_FILE, DEFAULT_PRODUCT_CONFIGS);
+  },
+
+  findByType(type: ProductType): ProductConfig {
+    return (
+      this.all().find((c) => c.productType === type) ??
+      DEFAULT_PRODUCT_CONFIGS.find((c) => c.productType === type)!
+    );
+  },
+
+  save(config: ProductConfig): ProductConfig {
+    const all = this.all();
+    const idx = all.findIndex((c) => c.productType === config.productType);
+    const updated = { ...config, updatedAt: new Date().toISOString() };
+    if (idx >= 0) all[idx] = updated;
+    else all.push(updated);
+    writeJson(PRODUCT_CONFIGS_FILE, all);
+    return updated;
   },
 };
