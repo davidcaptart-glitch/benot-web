@@ -14,7 +14,6 @@
 import { drizzle }  from "drizzle-orm/postgres-js";
 import postgres      from "postgres";
 import bcrypt        from "bcryptjs";
-import "dotenv/config";
 
 import {
   providers,
