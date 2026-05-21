@@ -42,7 +42,23 @@
       "Bash(mkdir -p \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Benot Web\\\\app\\\\api\\\\admin\\\\orders\\\\[ref]\\\\file\\\\[filename]\")",
       "Bash(Move-Item -Force \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Benot Web\\\\app\\\\api\\\\admin\\\\orders\\\\[ref]\\\\file\\\\route.ts\" \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Benot Web\\\\app\\\\api\\\\admin\\\\orders\\\\[ref]\\\\file\\\\[filename]\\\\route.ts\")",
       "Bash(cp \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Benot Web\\\\app\\\\api\\\\admin\\\\orders\\\\[ref]\\\\file\\\\route.ts\" \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Benot Web\\\\app\\\\api\\\\admin\\\\orders\\\\[ref]\\\\file\\\\[filename]\\\\route.ts\")",
-      "Bash(rm \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Benot Web\\\\app\\\\api\\\\admin\\\\orders\\\\[ref]\\\\file\\\\route.ts\")"
+      "Bash(rm \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Benot Web\\\\app\\\\api\\\\admin\\\\orders\\\\[ref]\\\\file\\\\route.ts\")",
+      "Bash(npx drizzle-kit *)",
+      "Bash(findstr /i \"ADMIN_EMAIL\\\\|ADMIN_PASSWORD\\\\|NEXT_PUBLIC_BASE_URL\\\\|JWT_SECRET\")",
+      "Bash(node -e \"require\\('crypto'\\).randomBytes\\(48\\).toString\\('base64'\\)\")",
+      "Bash(where docker *)",
+      "Bash(docker info *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":5432\")",
+      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(\"/c/Program Files/Docker/Docker/Docker Desktop.exe\")",
+      "Bash(where puttygen *)",
+      "Bash(where ssh-keygen *)",
+      "Bash(where ssh *)",
+      "Bash(where scp *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\PuTTY\\\\puttygen.exe\" \"D:\\\\DF\\\\EMPRESAS\\\\BENOT\\\\Gestión\\\\hetzner ssh private key.ppk\" -O private-openssh -o \"$env:TEMP\\\\benot_hetzner.pem\"; echo \"Exit: $LASTEXITCODE\")",
+      "Bash(git log *)",
+      "PowerShell(ssh -i \"$env:TEMP\\\\benot_hetzner.pem\" -o StrictHostKeyChecking=no root@178.105.105.94 \"cat /opt/benot-web/package.json | python3 -c \\\\\"import sys,json; p=json.load\\(sys.stdin\\); print\\(list\\(p.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\\\\\"\")"
     ]
   }
 }
