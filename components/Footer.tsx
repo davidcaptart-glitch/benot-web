@@ -34,6 +34,14 @@ export default function Footer() {
               TELEGRAM
             </a>
             <a
+              href="https://wa.me/34604868048"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bebas tracking-widest text-sm text-gray-400 hover:text-[#FF1E1E] transition-colors duration-200"
+            >
+              WHATSAPP
+            </a>
+            <a
               href="https://instagram.com/benotstore"
               target="_blank"
               rel="noopener noreferrer"
