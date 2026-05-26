@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import ImageLightbox from "@/components/ImageLightbox";
 import type { AssetItem } from "@/lib/assets";
 
@@ -8,6 +8,36 @@ interface Props {
   items: AssetItem[];
   /** How many columns on the smallest grid (default: 2) */
   cols?: "2" | "3";
+}
+
+// ── Botón copiar código ───────────────────────────────────────────────────────
+function CopyCode({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [code]);
+  return (
+    <button
+      onClick={handleCopy}
+      className="w-full flex items-center justify-center gap-1.5 font-bebas tracking-widest text-[11px] text-gray-400 hover:text-black transition-colors duration-150 py-0.5"
+      title="Copiar referencia"
+    >
+      {copied ? (
+        <>✅ <span>COPIADO</span></>
+      ) : (
+        <>
+          <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          <span>{code}</span>
+        </>
+      )}
+    </button>
+  );
 }
 
 function whatsappUrl(code: string) {
@@ -56,9 +86,7 @@ export default function CatalogGrid({ items, cols = "2" }: Props) {
 
             {/* Code + bot buttons */}
             <div className="px-3 py-3 flex flex-col gap-2">
-              <span className="font-bebas tracking-widest text-[11px] text-gray-400 text-center block">
-                {item.code}
-              </span>
+              <CopyCode code={item.code} />
               <a
                 href={telegramUrl(item.code)}
                 target="_blank"
