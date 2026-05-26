@@ -1,29 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+/**
+ * RunningDestaca — herramienta interactiva de contraste en carrera.
+ *
+ * Cambios respecto a la versión anterior:
+ *  • Acepta `catalog: RunningProduct[]` como prop (antes usaba SHIRTS_DATA hardcodeado).
+ *  • getRecommendations() recibe el catálogo dinámico en cada llamada.
+ *  • El resto de la lógica de UI no cambia.
+ */
+
+import { useState, useEffect }      from "react";
+import Link                          from "next/link";
 import {
   RACE_COLORS,
   getRecommendations,
   type RaceColorId,
   type Recommendation,
 } from "@/lib/runningColorData";
+import type { RunningProduct }       from "@/lib/catalog/types";
 
 /* ─────────────────────────────────────────────────────────────────
-   Organic crowd — deterministic "random" (no hydration mismatch)
+   Crowd determinística — sin hydration mismatch
+   (Math.sin como PRNG barato y estable)
 ───────────────────────────────────────────────────────────────── */
 function det(seed: number): number {
   return Math.abs(Math.sin(seed * 127.1 + 311.7) * 43758.5) % 1;
 }
 
-const ROWS = 5;
-const COLS = 11;
+const ROWS  = 5;
+const COLS  = 11;
 const B_ROW = 2;
-const B_COL = 5; // centre of 11
+const B_COL = 5; // centro de 11 columnas
 
 const CROWD_CFG = Array.from({ length: ROWS }, (_, r) =>
   Array.from({ length: COLS }, (_, c) => {
-    const idx    = r * COLS + c;
+    const idx     = r * COLS + c;
     const isBenot = r === B_ROW && c === B_COL;
     return {
       isBenot,
@@ -33,6 +44,8 @@ const CROWD_CFG = Array.from({ length: ROWS }, (_, r) =>
     };
   })
 );
+
+/* ─── SVG de camiseta ───────────────────────────────────────────── */
 
 const SHIRT_PATH =
   "M35 12 L8 42 L28 50 L23 118 L97 118 L92 50 L112 42 L85 12 Q72 22 60 22 Q48 22 35 12 Z";
@@ -49,9 +62,8 @@ function ShirtSVG({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   Category → hex colour (for the BENOT shirt SVG in the crowd)
-───────────────────────────────────────────────────────────────── */
+/* ─── ColorCategory → hex (crowd central BENOT) ───────────────── */
+
 const CATEGORY_HEX: Record<string, string> = {
   white:  "#FFFFFF",
   black:  "#111111",
@@ -64,22 +76,18 @@ const CATEGORY_HEX: Record<string, string> = {
   purple: "#7C3AED",
   gray:   "#9CA3AF",
 };
+
 const CATEGORY_STROKE: Record<string, string> = {
   white: "#E5E7EB",
 };
 
-/* ─────────────────────────────────────────────────────────────────
-   Crowd grid
-   – Race shirts: small SVG icons with organic variation
-   – BENOT centre: coloured SVG shirt, clearly larger, with glow
-───────────────────────────────────────────────────────────────── */
+/* ─── Crowd grid ────────────────────────────────────────────────── */
+
 function CrowdGrid({
-  raceHex,
-  benotHex,
-  benotStroke,
+  raceHex, benotHex, benotStroke,
 }: {
   raceHex:     string;
-  benotHex:    string;   // colour of the selected BENOT shirt
+  benotHex:    string;
   benotStroke: string;
 }) {
   const raceStroke =
@@ -88,9 +96,7 @@ function CrowdGrid({
       : "rgba(0,0,0,0.10)";
 
   const glowColor =
-    benotHex === "#FFFFFF"
-      ? "rgba(200,200,200,0.7)"
-      : benotHex + "CC";
+    benotHex === "#FFFFFF" ? "rgba(200,200,200,0.7)" : benotHex + "CC";
 
   return (
     <div className="flex flex-col items-center gap-2 sm:gap-3">
@@ -107,7 +113,6 @@ function CrowdGrid({
               }}
             >
               {cell.isBenot ? (
-                /* ── BENOT centre: coloured SVG, scaled up, with glow ── */
                 <div className="relative" style={{ transform: "scale(1.7)" }}>
                   <ShirtSVG
                     fill={benotHex}
@@ -115,7 +120,6 @@ function CrowdGrid({
                     className="w-7 h-8 sm:w-9 sm:h-10 transition-all duration-500"
                     style={{ filter: `drop-shadow(0 0 8px ${glowColor})` } as React.CSSProperties}
                   />
-                  {/* "TÚ" label below */}
                   <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
                     <span className="font-bebas tracking-widest text-[8px] text-zinc-500 bg-white/80 px-1 py-0.5 rounded-sm">
                       TÚ
@@ -123,7 +127,6 @@ function CrowdGrid({
                   </div>
                 </div>
               ) : (
-                /* ── Crowd shirt: small SVG ── */
                 <ShirtSVG
                   fill={raceHex}
                   stroke={raceStroke}
@@ -138,15 +141,10 @@ function CrowdGrid({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   Recommendation card
-───────────────────────────────────────────────────────────────── */
+/* ─── Tarjeta de recomendación ──────────────────────────────────── */
+
 function RecCard({
-  rec,
-  raceHex,
-  isPrimary,
-  isSelected,
-  onClick,
+  rec, raceHex, isPrimary, isSelected, onClick,
 }: {
   rec:        Recommendation;
   raceHex:    string;
@@ -166,7 +164,7 @@ function RecCard({
         }
       `}
     >
-      {/* Shirt image */}
+      {/* Imagen */}
       <div className="relative bg-[#f5f5f3] overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -176,7 +174,7 @@ function RecCard({
           loading="lazy"
         />
 
-        {/* Label badge */}
+        {/* Badge */}
         <div className="absolute top-3 left-3">
           <span
             className={`font-bebas tracking-widest text-[10px] px-2.5 py-1 ${
@@ -187,21 +185,19 @@ function RecCard({
           </span>
         </div>
 
-        {/* Selected ring */}
+        {/* Ring de selección */}
         {isSelected && (
           <div className="absolute inset-0 ring-[3px] ring-inset ring-[#FF1E1E] pointer-events-none" />
         )}
 
-        {/* Race vs Benot swatches */}
+        {/* Swatches race vs benot */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/50 rounded px-2 py-1">
           <div
             className="w-3 h-3 rounded-full border border-white/30 shadow"
             style={{ backgroundColor: raceHex }}
           />
           <span className="font-bebas text-[8px] text-white/60">VS</span>
-          <div
-            className="w-3 h-3 overflow-hidden rounded-full border border-white/30"
-          >
+          <div className="w-3 h-3 overflow-hidden rounded-full border border-white/30">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={rec.shirt.src}
@@ -212,7 +208,6 @@ function RecCard({
           </div>
         </div>
 
-        {/* Bottom accent on primary */}
         {isPrimary && (
           <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF1E1E]" />
         )}
@@ -221,13 +216,12 @@ function RecCard({
       {/* Info */}
       <div className="flex flex-col flex-1 p-4 sm:p-5">
         <p className="font-bebas tracking-widest text-[10px] text-gray-400 mb-0.5">
-          {rec.shirt.code}
+          {rec.shirt.id}
         </p>
         <p className="font-bebas tracking-widest text-lg sm:text-xl text-black mb-1 leading-tight">
           {rec.shirt.name}
         </p>
 
-        {/* "Ver en crowd" hint */}
         <p className={`font-bebas tracking-widest text-xs mt-1 transition-colors ${
           isSelected ? "text-[#FF1E1E]" : "text-gray-300 group-hover:text-gray-400"
         }`}>
@@ -247,23 +241,28 @@ function RecCard({
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Main component
+   Componente principal
 ───────────────────────────────────────────────────────────────── */
-export default function RunningDestaca() {
-  const [raceColor,       setRaceColor]       = useState<RaceColorId | null>(null);
+
+interface Props {
+  /** Catálogo running completo — pasa desde el Server Component padre. */
+  catalog: RunningProduct[];
+}
+
+export default function RunningDestaca({ catalog }: Props) {
+  const [raceColor,        setRaceColor]        = useState<RaceColorId | null>(null);
   const [selectedBenotIdx, setSelectedBenotIdx] = useState<0 | 1>(0);
   const [visible,          setVisible]          = useState(false);
 
-  const raceCfg   = RACE_COLORS.find((c) => c.id === raceColor);
-  const recs      = raceColor ? getRecommendations(raceColor) : [];
+  const raceCfg     = RACE_COLORS.find((c) => c.id === raceColor);
+  // getRecommendations ahora recibe el catálogo dinámico
+  const recs        = raceColor ? getRecommendations(raceColor, catalog) : [];
   const highlighted = recs[selectedBenotIdx] ?? null;
 
-  // Derive crowd BENOT shirt colour from the highlighted recommendation
-  const benotCategory = highlighted?.shirt.category ?? "cyan";
+  const benotCategory = highlighted?.shirt.colorCategory ?? "cyan";
   const benotHex      = CATEGORY_HEX[benotCategory]    ?? "#06B6D4";
   const benotStroke   = CATEGORY_STROKE[benotCategory] ?? "transparent";
 
-  /* Reset selection index when race colour changes */
   useEffect(() => {
     setSelectedBenotIdx(0);
     setVisible(false);
@@ -275,7 +274,7 @@ export default function RunningDestaca() {
   return (
     <section className="bg-white overflow-hidden">
 
-      {/* ── Hero ────────────────────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────────────────── */}
       <div className="max-w-[1200px] mx-auto px-6 pt-16 pb-0">
         <p className="font-bebas tracking-[0.35em] text-xs text-[#FF1E1E] mb-4">
           ✦ RUNNING
@@ -297,7 +296,7 @@ export default function RunningDestaca() {
         </div>
       </div>
 
-      {/* ── 1. Race colour selector ─────────────────────────────── */}
+      {/* ── 1. Selector de color de carrera ─────────────────────── */}
       <div className="max-w-[1200px] mx-auto px-6 pb-0">
         <p className="font-bebas tracking-widest text-2xl sm:text-3xl text-black mb-1">
           ¿De qué color es la camiseta de la carrera?
@@ -336,7 +335,7 @@ export default function RunningDestaca() {
         </div>
       </div>
 
-      {/* ── 2. Crowd (between selector and recs) ────────────────── */}
+      {/* ── 2. Crowd ──────────────────────────────────────────────── */}
       <div
         className={`
           transition-all duration-500 ease-out
@@ -349,7 +348,6 @@ export default function RunningDestaca() {
         <div className="py-12 px-6" style={{ backgroundColor: "#f3f3f1" }}>
           <div className="max-w-[1200px] mx-auto">
 
-            {/* Instruction on mobile */}
             <p className="font-bebas tracking-widest text-xs text-zinc-400 text-center mb-8 sm:hidden">
               SELECCIONA UNA CAMISETA ABAJO PARA VERLA EN LA MULTITUD
             </p>
@@ -360,14 +358,11 @@ export default function RunningDestaca() {
               benotStroke={benotStroke}
             />
 
-            {/* Legend */}
             <div className="flex items-center justify-center gap-6 mt-10">
               <div className="flex items-center gap-2">
                 <ShirtSVG
                   fill={raceCfg?.crowd ?? "#9CA3AF"}
-                  stroke={
-                    raceCfg?.id === "blanca" ? "#ADADAD" : "rgba(0,0,0,0.1)"
-                  }
+                  stroke={raceCfg?.id === "blanca" ? "#ADADAD" : "rgba(0,0,0,0.1)"}
                   className="w-4 h-5 opacity-60"
                 />
                 <span className="font-bebas tracking-widest text-[11px] text-zinc-400">
@@ -378,11 +373,7 @@ export default function RunningDestaca() {
               </div>
               <div className="w-px h-4 bg-zinc-300" />
               <div className="flex items-center gap-2">
-                <ShirtSVG
-                  fill={benotHex}
-                  stroke={benotStroke}
-                  className="w-4 h-5"
-                />
+                <ShirtSVG fill={benotHex} stroke={benotStroke} className="w-4 h-5" />
                 <span className="font-bebas tracking-widest text-[11px] text-zinc-700">
                   TÚ CON BENOT
                 </span>
@@ -391,7 +382,7 @@ export default function RunningDestaca() {
           </div>
         </div>
 
-        {/* ── 3. BENOT recommendations ─────────────────────────── */}
+        {/* ── 3. Recomendaciones ───────────────────────────────────── */}
         <div className="max-w-[1200px] mx-auto px-6 pt-10 pb-20">
 
           <div className="mb-6">
@@ -409,7 +400,7 @@ export default function RunningDestaca() {
           <div className="grid grid-cols-2 gap-3 sm:gap-6 max-w-[680px]">
             {recs.map((rec, i) => (
               <RecCard
-                key={rec.shirt.code}
+                key={rec.shirt.id}
                 rec={rec}
                 raceHex={raceCfg?.hex ?? "#9CA3AF"}
                 isPrimary={i === 0}
@@ -419,7 +410,7 @@ export default function RunningDestaca() {
             ))}
           </div>
 
-          {/* Bottom CTA */}
+          {/* CTA final */}
           <div className="mt-10 p-6 sm:p-8 bg-black flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
             <div>
               <p className="font-bebas tracking-widest text-xl sm:text-2xl text-white mb-1">
@@ -439,7 +430,7 @@ export default function RunningDestaca() {
         </div>
       </div>
 
-      {/* Empty state — before any selection */}
+      {/* Empty state — antes de cualquier selección */}
       {!raceColor && (
         <div className="flex items-center justify-center py-10">
           <p className="font-bebas tracking-widest text-gray-200 text-base">

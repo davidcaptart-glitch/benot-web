@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import Header from "@/components/Header";
-import RunningDestaca from "@/components/RunningDestaca";
-import CatalogGrid from "@/components/CatalogGrid";
-import { getAssetFiles } from "@/lib/assets";
+import type { Metadata }         from "next";
+import Header                    from "@/components/Header";
+import RunningDestaca             from "@/components/RunningDestaca";
+import RunningCatalogSection      from "@/components/RunningCatalogSection";
+import { getRunningCatalog, getColorGroupCounts } from "@/lib/catalog/runningCatalog";
 
 export const metadata: Metadata = {
   title: "Running | BENOT",
@@ -10,8 +10,16 @@ export const metadata: Metadata = {
     "Camisetas BENOT Running. Diseñadas para correr y para destacar. Elige la tuya según el color de la carrera.",
 };
 
-export default function RunningPage() {
-  const items = getAssetFiles("Configurador/Running");
+// force-dynamic garantiza que el catálogo se re-lee en cada request
+// (necesario mientras las imágenes se añaden vía volumen Docker sin rebuild)
+export const dynamic = "force-dynamic";
+
+export default async function RunningPage() {
+  // Catálogo auto-generado desde assets/Running/
+  // Sharp analiza colores por primera vez y los cachea por mtime.
+  // Añadir una imagen nueva → aparece automáticamente en el próximo request.
+  const catalog = await getRunningCatalog();
+  const colorGroupCounts = getColorGroupCounts(catalog);
 
   return (
     <div className="min-h-screen bg-white">
@@ -19,51 +27,15 @@ export default function RunningPage() {
 
       <main className="pt-[68px]">
 
-        {/* ── Herramienta de contraste interactiva ── */}
-        <RunningDestaca />
+        {/* ── Herramienta interactiva de contraste ────────────────── */}
+        {/* Recibe el catálogo dinámico para el motor de recomendación */}
+        <RunningDestaca catalog={catalog} />
 
-        {/* ── Catálogo completo ─────────────────── */}
-        <div className="max-w-[1200px] mx-auto px-6 py-16">
-
-          <div className="flex items-start justify-between mb-8 gap-4">
-            <div>
-              <p className="font-bebas tracking-[0.35em] text-xs text-[#FF1E1E] mb-2">
-                CATÁLOGO
-              </p>
-              <h2 className="font-bebas tracking-widest text-4xl sm:text-5xl text-black leading-none">
-                TODAS LAS CAMISETAS RUNNING
-              </h2>
-              <p className="font-bebas tracking-widest text-xs text-gray-400 mt-1.5">
-                {items.length} DISEÑOS · CÓDIGO BASE: BNTRN
-              </p>
-              <div className="w-10 h-[3px] bg-[#FF1E1E] mt-3" />
-            </div>
-            <a
-              href="https://t.me/Benotpedidosbot"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 font-bebas tracking-widest text-xs text-[#FF1E1E] hover:underline hidden sm:block mt-1"
-            >
-              @Benotpedidosbot
-            </a>
-          </div>
-
-          <CatalogGrid items={items} />
-
-          <div className="mt-12 pt-8 border-t border-gray-100 text-center">
-            <p className="font-bebas tracking-widest text-gray-400 text-xs mb-4">
-              ¿BUSCAS ALGO MÁS? CONSÚLTANOS DIRECTAMENTE
-            </p>
-            <a
-              href="https://t.me/Benotpedidosbot"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 font-bebas tracking-widest text-sm px-8 py-3 bg-[#FF1E1E] text-white hover:bg-black transition-colors duration-200"
-            >
-              CONTACTAR POR TELEGRAM →
-            </a>
-          </div>
-        </div>
+        {/* ── Catálogo completo con filtro de color ───────────────── */}
+        <RunningCatalogSection
+          products={catalog}
+          colorGroupCounts={colorGroupCounts}
+        />
 
       </main>
 
