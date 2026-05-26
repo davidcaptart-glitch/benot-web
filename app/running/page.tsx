@@ -2,7 +2,9 @@ import type { Metadata }         from "next";
 import Header                    from "@/components/Header";
 import RunningDestaca             from "@/components/RunningDestaca";
 import RunningCatalogSection      from "@/components/RunningCatalogSection";
+import WomenCollection            from "@/components/WomenCollection";
 import { getRunningCatalog, getRunningColorCounts } from "@/lib/catalog/runningCatalog";
+import { getAssetFiles }          from "@/lib/assets";
 
 export const metadata: Metadata = {
   title: "Running | BENOT",
@@ -15,11 +17,13 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RunningPage() {
-  // Catálogo auto-generado desde assets/Running/
-  // Sharp analiza colores por primera vez y los cachea por mtime.
-  // Añadir una imagen nueva → aparece automáticamente en el próximo request.
-  const catalog = await getRunningCatalog();
+  // Catálogo masculino auto-generado desde assets/Running/
+  const catalog            = await getRunningCatalog();
   const runningColorCounts = getRunningColorCounts(catalog);
+
+  // Colección femenina — colorways de BNTRW001
+  // Añadir más imágenes a assets/Configurador/Running/BNTRW001/ → aparecen automáticamente
+  const womenItems = getAssetFiles("Configurador/Running/BNTRW001");
 
   return (
     <div className="min-h-screen bg-white">
@@ -28,14 +32,18 @@ export default async function RunningPage() {
       <main className="pt-[68px]">
 
         {/* ── Herramienta interactiva de contraste ────────────────── */}
-        {/* Recibe el catálogo dinámico para el motor de recomendación */}
         <RunningDestaca catalog={catalog} />
 
-        {/* ── Catálogo completo con filtro de color ───────────────── */}
+        {/* ── Catálogo masculino completo con filtro de color ─────── */}
         <RunningCatalogSection
           products={catalog}
           runningColorCounts={runningColorCounts}
         />
+
+        {/* ── Primera Colección Femenina BENOT ────────────────────── */}
+        {womenItems.length > 0 && (
+          <WomenCollection items={womenItems} />
+        )}
 
       </main>
 

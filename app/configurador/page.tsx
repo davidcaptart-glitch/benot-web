@@ -43,8 +43,11 @@ export default function ConfiguradorPage() {
     },
   };
 
-  // Running — catálogo fijo: assets/Configurador/Running/
+  // Running masculino — catálogo fijo: assets/Configurador/Running/ (solo archivos raíz, no subcarpetas)
   const runningItems = getAssetFiles("Configurador/Running");
+
+  // Running femenino — colorways BNTRW001
+  const womenRunningItems = getAssetFiles("Configurador/Running/BNTRW001");
 
   // Solidaria #YoTeEmpujo: assets/Configurador/yoteempujo/
   const yoteempujoItems = getAssetFiles("Configurador/yoteempujo");
@@ -58,6 +61,7 @@ export default function ConfiguradorPage() {
           frasesByColor={frasesByColor}
           disenosByCategory={disenosByCategory}
           runningItems={runningItems}
+          womenRunningItems={womenRunningItems}
           yoteempujoItems={yoteempujoItems}
         />
       </main>

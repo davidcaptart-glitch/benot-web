@@ -49,6 +49,8 @@ interface Props {
    *  Los thumbnails ya muestran el diseño sobre la camiseta del color elegido. */
   disenosByCategory: Record<string, Record<Color, AssetItem[]>>;
   runningItems: AssetItem[];
+  /** Colorways del modelo femenino BNTRW001 */
+  womenRunningItems: AssetItem[];
   yoteempujoItems: AssetItem[];
 }
 
@@ -538,32 +540,189 @@ function Step5Talla({ sizes, onChange }: { sizes: SizeMap; onChange: (s: SizeMap
 }
 
 /* ──────────────────────────────────────────────
-   Vista Running — catálogo
+   Vista Running — catálogo con tabs HOMBRE / MUJER
 ────────────────────────────────────────────── */
-function ViewRunning({ items, onSelect }: { items: AssetItem[]; onSelect: (item: AssetItem) => void }) {
+
+/** Sufijo de código → nombre de colorway para la colección femenina */
+const WOMEN_COLORWAY: Record<string, string> = {
+  C: "CYAN", G: "VERDE", M: "MAGENTA",
+  O: "NARANJA", P: "MORADO", R: "ROJO", W: "BLANCO",
+};
+function womenColorLabel(code: string): string {
+  return WOMEN_COLORWAY[code.slice(-1).toUpperCase()] ?? code;
+}
+
+function ViewRunning({
+  items,
+  womenItems,
+  onSelect,
+}: {
+  items:      AssetItem[];
+  womenItems: AssetItem[];
+  onSelect:   (item: AssetItem) => void;
+}) {
+  const [tab, setTab]             = useState<"men" | "women">("men");
+  const [wIdx, setWIdx]           = useState(0);
+  const [wVisible, setWVisible]   = useState(true);
+
+  const wGoTo = (next: number) => {
+    if (next === wIdx) return;
+    setWVisible(false);
+    setTimeout(() => { setWIdx(next); setWVisible(true); }, 180);
+  };
+  const wPrev = () => wGoTo(wIdx === 0 ? womenItems.length - 1 : wIdx - 1);
+  const wNext = () => wGoTo(wIdx === womenItems.length - 1 ? 0 : wIdx + 1);
+
+  const wItem = womenItems[wIdx];
+
   return (
     <div className="fade-in-up">
-      <h2 className="font-bebas tracking-widest text-4xl sm:text-5xl mb-3">CAMISETAS RUNNING</h2>
-      <p className="font-bebas tracking-widest text-gray-400 text-sm mb-10 tracking-widest">
-        {items.length} DISEÑOS DISPONIBLES · SELECCIONA UNO PARA ELEGIR TALLA
-      </p>
-      {items.length === 0 ? (
-        <p className="font-bebas tracking-widest text-gray-400 text-lg">Próximamente — colección en preparación.</p>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {items.map((item) => (
-            <div key={item.code} className="border-2 border-gray-200 hover:border-black transition-all duration-200 group">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.src} alt={item.code} className="w-full h-auto block bg-gray-50" />
-              <div className="p-3">
-                <p className="font-bebas tracking-widest text-sm text-gray-600 mb-3">{item.code}</p>
-                <button onClick={() => onSelect(item)} className="w-full font-bebas tracking-widest text-xs bg-black text-white py-2 hover:bg-[#FF1E1E] transition-colors duration-200">
-                  ELEGIR TALLA →
-                </button>
-              </div>
-            </div>
-          ))}
+      <h2 className="font-bebas tracking-widest text-4xl sm:text-5xl mb-4">CAMISETAS RUNNING</h2>
+
+      {/* ── Tab toggle HOMBRE / MUJER ──── */}
+      {womenItems.length > 0 && (
+        <div className="flex w-fit border-2 border-gray-200 mb-10">
+          <button
+            onClick={() => setTab("men")}
+            className={`font-bebas tracking-widest text-sm px-7 py-2.5 transition-all duration-200 ${
+              tab === "men" ? "bg-black text-white" : "text-gray-500 hover:text-black"
+            }`}
+          >
+            HOMBRE
+          </button>
+          <button
+            onClick={() => setTab("women")}
+            className={`font-bebas tracking-widest text-sm px-7 py-2.5 flex items-center gap-2.5 transition-all duration-200 ${
+              tab === "women" ? "bg-black text-white" : "text-gray-500 hover:text-black"
+            }`}
+          >
+            MUJER
+            <span className="font-bebas text-[9px] tracking-wider px-1.5 py-0.5 bg-[#FF1E1E] text-white leading-none">
+              NUEVO
+            </span>
+          </button>
         </div>
+      )}
+
+      {/* ── Tab HOMBRE: grid normal ───────────────────────────── */}
+      {tab === "men" && (
+        <>
+          <p className="font-bebas tracking-widest text-gray-400 text-sm mb-8">
+            {items.length} DISEÑOS DISPONIBLES · SELECCIONA UNO PARA ELEGIR TALLA
+          </p>
+          {items.length === 0 ? (
+            <p className="font-bebas tracking-widest text-gray-400 text-lg">Próximamente — colección en preparación.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {items.map((item) => (
+                <div key={item.code} className="border-2 border-gray-200 hover:border-black transition-all duration-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.src} alt={item.code} className="w-full h-auto block bg-gray-50" />
+                  <div className="p-3">
+                    <p className="font-bebas tracking-widest text-sm text-gray-600 mb-3">{item.code}</p>
+                    <button
+                      onClick={() => onSelect(item)}
+                      className="w-full font-bebas tracking-widest text-xs bg-black text-white py-2 hover:bg-[#FF1E1E] transition-colors duration-200"
+                    >
+                      ELEGIR TALLA →
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Tab MUJER: carrusel BNTRW001 ──────────────────────── */}
+      {tab === "women" && wItem && (
+        <div className="max-w-[520px]">
+          {/* Badges */}
+          <div className="flex items-center gap-3 mb-8">
+            <span className="font-bebas tracking-[0.35em] text-[10px] text-gray-400 border border-gray-200 px-3 py-1.5">
+              BNTRW001
+            </span>
+            <span className="font-bebas tracking-[0.3em] text-[10px] text-[#FF1E1E] px-3 py-1.5 border border-[#FF1E1E]/30">
+              PRIMERA COLECCIÓN FEMENINA
+            </span>
+          </div>
+
+          {/* Carrusel */}
+          <div className="flex items-center gap-4 mb-4">
+            {/* Flecha ← */}
+            <button
+              onClick={wPrev}
+              aria-label="Colorway anterior"
+              className="flex-shrink-0 w-10 h-10 border-2 border-gray-200 flex items-center justify-center hover:border-black hover:bg-black hover:text-white transition-all duration-200"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            <div
+              className="flex-1 transition-opacity duration-200 border border-gray-100"
+              style={{ opacity: wVisible ? 1 : 0 }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={wItem.src} alt={wItem.code} className="w-full h-auto block" draggable={false} />
+            </div>
+
+            {/* Flecha → */}
+            <button
+              onClick={wNext}
+              aria-label="Colorway siguiente"
+              className="flex-shrink-0 w-10 h-10 border-2 border-gray-200 flex items-center justify-center hover:border-black hover:bg-black hover:text-white transition-all duration-200"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Código + posición */}
+          <div className="flex items-center justify-between mb-4">
+            <span
+              className="font-bebas tracking-widest text-base transition-opacity duration-200"
+              style={{ opacity: wVisible ? 1 : 0 }}
+            >
+              {womenColorLabel(wItem.code)}
+            </span>
+            <span className="font-bebas tracking-widest text-sm text-gray-400">
+              {wIdx + 1} / {womenItems.length}
+            </span>
+          </div>
+
+          {/* Dots */}
+          <div className="flex items-center gap-2 mb-8">
+            {womenItems.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => wGoTo(i)}
+                aria-label={`Colorway ${i + 1}`}
+                className={`transition-all duration-200 ${
+                  i === wIdx
+                    ? "w-6 h-1.5 bg-black"
+                    : "w-1.5 h-1.5 rounded-full bg-gray-300 hover:bg-gray-500"
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={() => onSelect(wItem)}
+            className="w-full font-bebas tracking-widest text-sm bg-black text-white py-3 hover:bg-[#FF1E1E] transition-colors duration-200"
+          >
+            ELEGIR TALLA →
+          </button>
+        </div>
+      )}
+
+      {tab === "women" && womenItems.length === 0 && (
+        <p className="font-bebas tracking-widest text-gray-400 text-lg">
+          Próximamente — primera colección femenina en preparación.
+        </p>
       )}
     </div>
   );
@@ -861,7 +1020,7 @@ function CartView({
 /* ──────────────────────────────────────────────
    Wizard principal
 ────────────────────────────────────────────── */
-export default function Configurador({ frasesByColor, disenosByCategory, runningItems, yoteempujoItems }: Props) {
+export default function Configurador({ frasesByColor, disenosByCategory, runningItems, womenRunningItems, yoteempujoItems }: Props) {
 
   /* ── App view ── */
   const [view, setView] = useState<AppView>("type-select");
@@ -1032,7 +1191,7 @@ export default function Configurador({ frasesByColor, disenosByCategory, running
                 ← VOLVER
               </button>
             </div>
-            <ViewRunning items={runningItems} onSelect={(item) => handleFixedSelect("running", item)} />
+            <ViewRunning items={runningItems} womenItems={womenRunningItems} onSelect={(item) => handleFixedSelect("running", item)} />
           </>
         )}
 
