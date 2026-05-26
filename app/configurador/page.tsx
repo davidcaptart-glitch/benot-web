@@ -11,6 +11,10 @@ export const metadata: Metadata = {
     "Diseña tu camiseta BENOT paso a paso: elige el color, la frase y el diseño. Pedido directo al bot de Telegram.",
 };
 
+// force-dynamic: el configurador lee el filesystem en cada request para
+// reflejar automáticamente cualquier imagen nueva sin rebuild de Docker.
+export const dynamic = "force-dynamic";
+
 // Rutas base de activos del configurador
 const BASE = "Configurador/Camiseta personalizada";
 
