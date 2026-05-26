@@ -2,7 +2,7 @@ import type { Metadata }         from "next";
 import Header                    from "@/components/Header";
 import RunningDestaca             from "@/components/RunningDestaca";
 import RunningCatalogSection      from "@/components/RunningCatalogSection";
-import { getRunningCatalog, getColorGroupCounts } from "@/lib/catalog/runningCatalog";
+import { getRunningCatalog, getRunningColorCounts } from "@/lib/catalog/runningCatalog";
 
 export const metadata: Metadata = {
   title: "Running | BENOT",
@@ -19,7 +19,7 @@ export default async function RunningPage() {
   // Sharp analiza colores por primera vez y los cachea por mtime.
   // Añadir una imagen nueva → aparece automáticamente en el próximo request.
   const catalog = await getRunningCatalog();
-  const colorGroupCounts = getColorGroupCounts(catalog);
+  const runningColorCounts = getRunningColorCounts(catalog);
 
   return (
     <div className="min-h-screen bg-white">
@@ -34,7 +34,7 @@ export default async function RunningPage() {
         {/* ── Catálogo completo con filtro de color ───────────────── */}
         <RunningCatalogSection
           products={catalog}
-          colorGroupCounts={colorGroupCounts}
+          runningColorCounts={runningColorCounts}
         />
 
       </main>

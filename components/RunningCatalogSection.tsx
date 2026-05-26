@@ -3,78 +3,68 @@
 /**
  * RunningCatalogSection
  *
- * Sección del catálogo Running con filtro de color interactivo.
- * Recibe el catálogo completo del Server Component padre y gestiona
- * el estado del filtro en cliente (sin round-trips al servidor).
+ * Catálogo Running con filtro de color premium.
+ * Los pills del filtro muestran los colores reales de la colección
+ * (no categorías genéricas), con sus nombres y dots de color exactos.
  *
- * Props:
- *  products  — catálogo completo (de getRunningCatalog)
- *  colorGroupCounts — conteo por grupo (para mostrar números en pills)
+ * El filtro es completamente dinámico:
+ *  • Solo aparecen pills de colores presentes en el catálogo
+ *  • Los contadores se actualizan automáticamente
+ *  • Nuevos RunningColor → aparecen automáticamente al añadir productos
  */
 
 import { useState, useMemo, useCallback } from "react";
 import CatalogGrid                         from "@/components/CatalogGrid";
-import type { RunningProduct, ProductColorGroup } from "@/lib/catalog/types";
-import type { AssetItem }                  from "@/lib/assets";
+import {
+  RUNNING_COLOR_PROFILES,
+  type RunningProduct,
+  type RunningColor,
+} from "@/lib/catalog/types";
+import type { AssetItem } from "@/lib/assets";
 
 /* ── Tipos ────────────────────────────────────────────────────────── */
 
-type FilterValue = "all" | ProductColorGroup;
-
-interface ColorPillConfig {
-  value:  FilterValue;
-  label:  string;
-  dot?:   string; // hex color for the dot indicator
-}
-
-/* ── Config de pills ─────────────────────────────────────────────── */
-
-const COLOR_PILLS: ColorPillConfig[] = [
-  { value: "all",    label: "TODOS" },
-  { value: "negro",  label: "NEGRO",  dot: "#111111" },
-  { value: "blanco", label: "BLANCO", dot: "#E5E7EB" },
-  { value: "rojo",   label: "ROJO",   dot: "#FF1E1E" },
-  { value: "azul",   label: "AZUL",   dot: "#1D4ED8" },
-];
+type FilterValue = "all" | RunningColor;
 
 /* ── Adaptador RunningProduct → AssetItem ───────────────────────── */
-// Permite reutilizar CatalogGrid sin modificarlo
 
-function toAssetItem(product: RunningProduct): AssetItem {
-  return {
-    code:     product.id,
-    filename: `${product.id}.png`,
-    src:      product.src,
-  };
+function toAssetItem(p: RunningProduct): AssetItem {
+  return { code: p.id, filename: `${p.id}.png`, src: p.src };
+}
+
+/* ── Props ──────────────────────────────────────────────────────── */
+
+interface Props {
+  products:         RunningProduct[];
+  runningColorCounts: Partial<Record<RunningColor, number>>;
 }
 
 /* ── Componente ─────────────────────────────────────────────────── */
 
-interface Props {
-  products:         RunningProduct[];
-  colorGroupCounts: Partial<Record<ProductColorGroup, number>>;
-}
-
-export default function RunningCatalogSection({ products, colorGroupCounts }: Props) {
+export default function RunningCatalogSection({ products, runningColorCounts }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
 
-  // Filtrar productos por grupo de color — memoizado para evitar recálculos innecesarios
+  // Solo mostrar pills para colores con ≥1 producto (orden de la colección)
+  const activePills = useMemo(() =>
+    RUNNING_COLOR_PROFILES.filter(
+      (p) => (runningColorCounts[p.id] ?? 0) > 0
+    ),
+    [runningColorCounts]
+  );
+
   const filteredItems = useMemo<AssetItem[]>(() => {
     const filtered =
       activeFilter === "all"
         ? products
-        : products.filter((p) => p.colorGroup === activeFilter);
+        : products.filter((p) => p.runningColor === activeFilter);
     return filtered.map(toAssetItem);
   }, [products, activeFilter]);
 
-  const handleFilter = useCallback((value: FilterValue) => {
-    setActiveFilter(value);
-  }, []);
+  const handleFilter = useCallback((v: FilterValue) => setActiveFilter(v), []);
 
-  // Sólo mostrar pills de colores que tienen al menos 1 producto
-  const visiblePills = COLOR_PILLS.filter(
-    (pill) => pill.value === "all" || (colorGroupCounts[pill.value as ProductColorGroup] ?? 0) > 0
-  );
+  const totalCount = activeFilter === "all"
+    ? products.length
+    : (runningColorCounts[activeFilter as RunningColor] ?? 0);
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-16">
@@ -93,7 +83,6 @@ export default function RunningCatalogSection({ products, colorGroupCounts }: Pr
           </p>
           <div className="w-10 h-[3px] bg-[#FF1E1E] mt-3" />
         </div>
-
         <a
           href="https://t.me/Benotpedidosbot"
           target="_blank"
@@ -104,76 +93,71 @@ export default function RunningCatalogSection({ products, colorGroupCounts }: Pr
         </a>
       </div>
 
-      {/* ── Filtro de color ──────────────────────────────────────── */}
-      {visiblePills.length > 1 && (
-        <div className="flex flex-wrap gap-2 mb-8" role="group" aria-label="Filtrar por color">
-          {visiblePills.map((pill) => {
-            const isActive = activeFilter === pill.value;
-            const count    =
-              pill.value === "all"
-                ? products.length
-                : (colorGroupCounts[pill.value as ProductColorGroup] ?? 0);
+      {/* ── Filtro de color premium ──────────────────────────────── */}
+      {activePills.length > 1 && (
+        <div
+          className="flex flex-wrap gap-2 mb-8"
+          role="group"
+          aria-label="Filtrar por color"
+        >
+          {/* Pill "TODOS" */}
+          <FilterPill
+            label="TODOS"
+            count={products.length}
+            isActive={activeFilter === "all"}
+            dot={null}
+            onClick={() => handleFilter("all")}
+          />
 
-            return (
-              <button
-                key={pill.value}
-                onClick={() => handleFilter(pill.value)}
-                aria-pressed={isActive}
-                className={`
-                  flex items-center gap-2 px-4 py-2 border-2 font-bebas
-                  tracking-widest text-sm transition-all duration-200
-                  ${isActive
-                    ? "border-black bg-black text-white"
-                    : "border-gray-200 text-gray-600 hover:border-gray-400 hover:text-black bg-white"
-                  }
-                `}
-              >
-                {/* Dot de color (sólo en pills de color, no en "TODOS") */}
-                {pill.dot && (
-                  <span
-                    className="w-3 h-3 rounded-full flex-shrink-0 border"
-                    style={{
-                      backgroundColor: pill.dot,
-                      borderColor: pill.value === "blanco" ? "#ADADAD" : "rgba(0,0,0,0.15)",
-                    }}
-                    aria-hidden
-                  />
-                )}
-                {pill.label}
-                {/* Contador */}
-                <span className={`
-                  font-bebas text-[10px] px-1.5 py-0.5 rounded-sm
-                  ${isActive ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400"}
-                `}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+          {/* Pills de RunningColor presentes en el catálogo */}
+          {activePills.map((profile) => (
+            <FilterPill
+              key={profile.id}
+              label={profile.labelShort.toUpperCase()}
+              count={runningColorCounts[profile.id] ?? 0}
+              isActive={activeFilter === profile.id}
+              dot={profile.hex}
+              isLight={profile.isAchromatic && profile.hsl.l > 0.8}
+              onClick={() => handleFilter(profile.id)}
+            />
+          ))}
         </div>
       )}
 
-      {/* ── Grid de productos ────────────────────────────────────── */}
+      {/* ── Indicador de filtro activo ───────────────────────────── */}
+      {activeFilter !== "all" && (
+        <div className="flex items-center gap-3 mb-6">
+          {(() => {
+            const profile = RUNNING_COLOR_PROFILES.find(p => p.id === activeFilter);
+            return profile ? (
+              <>
+                <span
+                  className="w-3 h-3 rounded-full border border-black/10 flex-shrink-0"
+                  style={{ backgroundColor: profile.hex }}
+                />
+                <span className="font-bebas tracking-widest text-xs text-gray-500">
+                  MOSTRANDO: {profile.label.toUpperCase()} · {totalCount} DISEÑO{totalCount !== 1 ? "S" : ""}
+                </span>
+                <button
+                  onClick={() => handleFilter("all")}
+                  className="font-bebas tracking-widest text-xs text-[#FF1E1E] hover:underline ml-auto"
+                >
+                  VER TODOS →
+                </button>
+              </>
+            ) : null;
+          })()}
+        </div>
+      )}
+
+      {/* ── Grid ─────────────────────────────────────────────────── */}
       {filteredItems.length > 0 ? (
         <CatalogGrid items={filteredItems} />
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="font-bebas tracking-widest text-gray-200 text-2xl mb-2">
-            SIN RESULTADOS
-          </p>
-          <p className="font-bebas tracking-widest text-gray-400 text-xs">
-            NO HAY DISEÑOS EN ESTE COLOR TODAVÍA
-          </p>
-          <button
-            onClick={() => handleFilter("all")}
-            className="mt-6 font-bebas tracking-widest text-sm px-6 py-3 border-2 border-black text-black hover:bg-black hover:text-white transition-colors duration-200"
-          >
-            VER TODOS →
-          </button>
-        </div>
+        <EmptyState onReset={() => handleFilter("all")} />
       )}
 
-      {/* ── CTA inferior ─────────────────────────────────────────── */}
+      {/* ── CTA ──────────────────────────────────────────────────── */}
       <div className="mt-12 pt-8 border-t border-gray-100 text-center">
         <p className="font-bebas tracking-widest text-gray-400 text-xs mb-4">
           ¿BUSCAS ALGO MÁS? CONSÚLTANOS DIRECTAMENTE
@@ -187,6 +171,71 @@ export default function RunningCatalogSection({ products, colorGroupCounts }: Pr
           CONTACTAR POR TELEGRAM →
         </a>
       </div>
+    </div>
+  );
+}
+
+/* ── Sub-componentes ────────────────────────────────────────────── */
+
+interface FilterPillProps {
+  label:    string;
+  count:    number;
+  isActive: boolean;
+  dot:      string | null;  // hex o null para "TODOS"
+  isLight?: boolean;        // true → dot necesita borde oscuro (white_ice)
+  onClick:  () => void;
+}
+
+function FilterPill({ label, count, isActive, dot, isLight = false, onClick }: FilterPillProps) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={isActive}
+      className={`
+        flex items-center gap-2 px-4 py-2 border-2 font-bebas
+        tracking-widest text-sm transition-all duration-200
+        ${isActive
+          ? "border-black bg-black text-white"
+          : "border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-black"
+        }
+      `}
+    >
+      {dot !== null && (
+        <span
+          className="w-3 h-3 rounded-full flex-shrink-0 border"
+          style={{
+            backgroundColor: dot,
+            borderColor: isLight ? "#9CA3AF" : "rgba(0,0,0,0.12)",
+          }}
+          aria-hidden
+        />
+      )}
+      {label}
+      <span className={`
+        font-bebas text-[10px] px-1.5 py-0.5 rounded-sm min-w-[18px] text-center
+        ${isActive ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400"}
+      `}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function EmptyState({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <p className="font-bebas tracking-widest text-gray-200 text-2xl mb-2">
+        SIN RESULTADOS
+      </p>
+      <p className="font-bebas tracking-widest text-gray-400 text-xs mb-6">
+        NO HAY DISEÑOS EN ESTE COLOR TODAVÍA
+      </p>
+      <button
+        onClick={onReset}
+        className="font-bebas tracking-widest text-sm px-6 py-3 border-2 border-black text-black hover:bg-black hover:text-white transition-colors duration-200"
+      >
+        VER TODOS →
+      </button>
     </div>
   );
 }

@@ -7,7 +7,7 @@
  * QUÉ HACE:
  *   1. Lee todas las imágenes de assets/Running/
  *   2. Analiza el color dominante de cada imagen con sharp
- *   3. Actualiza assets/Running/metadata.json con los colores auto-detectados
+ *   3. Actualiza assets/Running/metadata.json con los RunningColors auto-detectados
  *      (respeta los campos que ya existen en metadata.json, solo añade/actualiza color)
  *
  * CUÁNDO USARLO:
@@ -20,7 +20,7 @@
 
 import fs   from "fs";
 import path from "path";
-import { analyzeImageColor } from "../lib/catalog/colorAnalyzer";
+import { analyzeRunningColor } from "../lib/catalog/colorAnalyzer";
 import type { RunningMetadata } from "../lib/catalog/types";
 
 const ASSETS_DIR    = path.join(process.cwd(), "assets", "Running");
@@ -42,7 +42,6 @@ async function main() {
   let meta: RunningMetadata = {};
   try {
     const raw = fs.readFileSync(META_FILE, "utf-8");
-    // Filtrar comentarios internos del schema al parsear
     meta = JSON.parse(raw) as RunningMetadata;
     // Eliminar entradas de schema/comentarios
     delete (meta as Record<string, unknown>)["_comment"];
@@ -59,37 +58,35 @@ async function main() {
     process.stdout.write(`   ${id}: analizando... `);
 
     try {
-      const { colorCategory, colorGroup } = await analyzeImageColor(imagePath);
+      const runningColor = await analyzeRunningColor(imagePath);
 
-      // Si el producto ya tiene override de color en metadata.json, respetarlo
+      // Si el producto ya tiene override de runningColor en metadata.json, respetarlo
       const existing = meta[id];
-      const hasOverride = existing?.colorCategory || existing?.colorGroup;
+      const hasOverride = existing?.runningColor;
 
       if (hasOverride) {
-        console.log(`→ ${colorCategory}/${colorGroup} (ignorado — override en metadata.json)`);
+        console.log(`→ ${runningColor} (ignorado — override en metadata.json: ${hasOverride})`);
       } else {
         meta[id] = {
           ...(meta[id] ?? {}),
-          colorCategory,
-          colorGroup,
+          runningColor,
         };
-        console.log(`→ ${colorCategory} / ${colorGroup} ✓`);
+        console.log(`→ ${runningColor} ✓`);
       }
     } catch (err) {
       console.log(`→ ERROR: ${err}`);
     }
   }
 
-  // 4. Escribir metadata.json actualizado (conserva orden original + añade nuevos al final)
+  // 4. Escribir metadata.json actualizado
   const output = {
-    _comment: "Overrides opcionales por producto. Cualquier campo puede omitirse — el sistema auto-detecta lo que falte.",
+    _comment: "Overrides de producto. Cualquier campo puede omitirse — el sistema auto-detecta lo que falte con sharp.",
     _schema: {
-      name:          "Nombre corto del producto",
-      slogan:        "Frase impresa / eslogan motivacional",
-      colorCategory: "Categoría semántica: white|black|red|orange|yellow|green|cyan|blue|purple|gray",
-      colorGroup:    "Bucket de filtro UI: negro|blanco|rojo|azul",
-      featured:      "true → aparece primero en el catálogo",
-      isNew:         "true → muestra badge NUEVO",
+      runningColor: "Color premium: white_ice | electric_purple | cyan | broken_orange | emerald | electric_blue | wine_red | fuchsia",
+      name:         "Nombre corto mostrado en tarjetas de recomendación",
+      slogan:       "Frase motivacional / texto impreso",
+      featured:     "true → aparece primero en el catálogo",
+      isNew:        "true → badge NUEVO",
     },
     ...meta,
   };
